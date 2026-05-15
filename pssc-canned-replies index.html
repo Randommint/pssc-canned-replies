@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PSSC – Canned Reply Assistant</title>
+<style>
+  body {
+    font-family: Segoe UI, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { margin-bottom: 10px; }
+  input, textarea {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+  }
+  .categories button {
+    margin-right: 6px;
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    border: none;
+    cursor: pointer;
+  }
+  .active { background:#0078d4; color:#fff; }
+  .card {
+    background:#fff;
+    padding:15px;
+    margin-bottom:15px;
+    border-radius:6px;
+    box-shadow:0 1px 3px rgba(0,0,0,.1);
+  }
+  .title { font-weight:bold; margin-bottom:6px; }
+  .when { font-size:12px; color:#555; margin-bottom:8px; }
+  .body {
+    background:#fafafa;
+    padding:10px;
+    border:1px solid #ddd;
+    white-space:pre-wrap;
+    font-size:13px;
+    margin-bottom:8px;
+  }
+  .copy-btn {
+    background:#0078d4;
+    color:white;
+    border:none;
+    padding:8px 12px;
+    cursor:pointer;
+    border-radius:4px;
+  }
+  .copied { background:#107c10 !important; }
+  .tag {
+    background:#eef;
+    padding:2px 8px;
+    border-radius:10px;
+    font-size:12px;
+    margin-right:5px;
+    display:inline-block;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>PSSC Canned Reply Assistant</h1>
+
+<input id="search" placeholder="Search replies (waiting, close, third-party...)" oninput="render()">
+
+<div class="categories" id="categories"></div>
+
+<!-- AI SUGGESTION PANEL -->
+<div class="card">
+  <div class="title">AI Suggestions (template recommendations only)</div>
+  <div class="when">Paste a short case summary. No text will be written for you.</div>
+
+  <textarea id="context" rows="5"
+    placeholder="Example: Customer stopped responding after logs request. Meets-related issue. Considering closure."></textarea>
+
+  <button class="copy-btn" onclick="suggest()">Suggest templates</button>
+  <div id="suggestions"></div>
+</div>
+
+<div id="templates"></div>
+
+<script>
+// ---------------- DATA ----------------
+const templates = [
+  {
+    category:"Follow Up",
+    title:"Waiting on Customer – Initial Follow-Up",
+    when:"Customer has not responded after requested information.",
+    body:`Hello,
+
+We’re following up on your Lenovo Smart Collaboration support case.
+
+To continue troubleshooting, we’re still waiting on the information requested in our previous message. Once we receive this, we can move forward right away.
+
+Please let us know how you’d like to proceed.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category:"Closure",
+    title:"Re-engagement Confirmation",
+    when:"Case has gone quiet and customer intent is unclear.",
+    body:`Hello,
+
+We wanted to check in to confirm whether you still need assistance with your Lenovo Smart Collaboration case.
+
+If assistance is still needed, please reply and we’ll continue working with you. Otherwise, let us know and we’ll close the case.
+
+Thank you,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category:"Closure",
+    title:"Case Closed – No Response",
+    when:"Multiple follow-ups sent with no response.",
+    body:`Hello,
+
+As we haven’t received a response, we’re closing this support case for now.
+
+If you require further assistance, simply reply or open a new case and we’ll be happy to help.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category:"Scope",
+    title:"Third-Party Ownership",
+    when:"Issue is outside Lenovo hardware support.",
+    body:`Hello,
+
+Based on our review, this issue appears related to a third-party component rather than Lenovo hardware.
+
+Further troubleshooting will need to continue with the appropriate third-party provider (Google, Microsoft, Logitech, etc.).
+
+Please let us know if you need guidance identifying the correct support channel.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  }
+];
+
+// Signals for AI suggestions (SAFE + EXPLAINABLE)
+const signals = {
+  "Waiting on Customer – Initial Follow-Up": ["no response","waiting","haven't heard","logs","info requested"],
+  "Re-engagement Confirmation": ["check in","still need","confirm","quiet","intent"],
+  "Case Closed – No Response": ["closing","final","no reply","close case"],
+  "Third-Party Ownership": ["google","logitech","microsoft","zoom","third-party","not lenovo"]
+};
+
+let activeCategory = "All";
+
+// ---------------- CORE ----------------
+function copyText(btn,text){
+  navigator.clipboard.writeText(text);
+  btn.textContent="Copied ✓";
+  btn.classList.add("copied");
+  setTimeout(()=>{btn.textContent="Copy";btn.classList.remove("copied");},1500);
+}
+
+function render(){
+  const q=document.getElementById("search").value.toLowerCase();
+  const list=document.getElementById("templates");
+  list.innerHTML="";
+  templates
+    .filter(t=>(activeCategory==="All"||t.category===activeCategory)
+      && (t.title.toLowerCase().includes(q)||t.body.toLowerCase().includes(q)))
+    .forEach(t=>{
+      list.innerHTML+=`
+      <div class="card">
+        <div class="title">${t.title}</div>
+        <div class="when">When to use: ${t.when}</div>
+        <div class="body">${t.body}</div>
+        <button class="copy-btn" onclick="copyText(this,\`${t.body}\`)">Copy</button>
+      </div>`;
+    });
+}
+
+function renderCategories(){
+  const cats=["All",...new Set(templates.map(t=>t.category))];
+  const c=document.getElementById("categories");
+  c.innerHTML="";
+  cats.forEach(cat=>{
+    c.innerHTML+=`<button class="${cat===activeCategory?'active':''}"
+      onclick="activeCategory='${cat}';renderCategories();render();">${cat}</button>`;
+  });
+}
+
+// ---------------- AI SUGGESTION ----------------
+function suggest(){
+  const ctx=document.getElementById("context").value.toLowerCase();
+  const out=document.getElementById("suggestions");
+  out.innerHTML="<h4>Top Suggestions</h4>";
+
+  let scored=templates.map(t=>{
+    let score=0;
+    let hits=[];
+    (signals[t.title]||[]).forEach(k=>{
+      if(ctx.includes(k)){score++;hits.push(k);}
+    });
+    return {...t,score,hits};
+  }).filter(r=>r.score>0).sort((a,b)=>b.score-a.score).slice(0,3);
+
+  if(!scored.length){
+    out.innerHTML+="<p>No strong match. Add more context.</p>";
+    return;
+  }
+
+  scored.forEach(t=>{
+    out.innerHTML+=`
+    <div class="card">
+      <div class="title">${t.title}</div>
+      <div class="when">Why suggested:
+        ${t.hits.map(h=>`<span class="tag">${h}</span>`).join("")}
+      </div>
+      <div class="body">${t.body}</div>
+      <button class="copy-btn" onclick="copyText(this,\`${t.body}\`)">Copy This Reply</button>
+    </div>`;
+  });
+}
+
+renderCategories();
+render();
+</script>
+
+</body>
+</html>
