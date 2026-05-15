@@ -1,302 +1,407 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>PSSC – Canned Reply Assistant v1.0</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PSSC – Canned Reply Assistant v1.1 (WOW)</title>
 
 <style>
-  body {
-    font-family: Segoe UI, sans-serif;
-    background: #f4f6f8;
-    margin: 0;
-    padding: 20px;
-  }
-
-  h1 { margin-bottom: 10px; }
-
+  body { font-family: Segoe UI, sans-serif; background:#f4f6f8; margin:0; padding:20px; }
+  h1 { margin:0 0 8px 0; }
+  .sub { color:#555; font-size:12px; margin-bottom:14px; }
   input, textarea {
-    width: 100%;
-    padding: 10px;
-    font-size: 14px;
-    margin-bottom: 10px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
+    width:100%; padding:10px; font-size:14px; margin-bottom:10px;
+    border-radius:6px; border:1px solid #ccc;
   }
-
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
   .categories button {
-    margin-right: 6px;
-    margin-bottom: 10px;
-    padding: 6px 10px;
-    border: none;
-    cursor: pointer;
+    margin-right:6px; margin-bottom:10px; padding:6px 10px; border:none; cursor:pointer; border-radius:6px;
+    background:#e6e6e6;
   }
-
-  .active {
-    background:#0078d4;
-    color:#fff;
-  }
-
+  .active { background:#0078d4 !important; color:#fff; }
   .card {
-    background:#fff;
-    padding:15px;
-    margin-bottom:15px;
-    border-radius:6px;
+    background:#fff; padding:15px; margin-bottom:15px; border-radius:10px;
     box-shadow:0 1px 3px rgba(0,0,0,.1);
   }
-
-  .title {
-    font-weight:bold;
-    margin-bottom:6px;
-  }
-
-  .when {
-    font-size:12px;
-    color:#555;
-    margin-bottom:8px;
-  }
-
+  .title { font-weight:700; margin-bottom:6px; }
+  .when { font-size:12px; color:#555; margin-bottom:8px; }
   .body {
-    background:#fafafa;
-    padding:10px;
-    border:1px solid #ddd;
-    white-space:pre-wrap;
-    font-size:13px;
-    margin-bottom:8px;
+    background:#fafafa; padding:10px; border:1px solid #ddd; white-space:pre-wrap;
+    font-size:13px; margin-bottom:8px; border-radius:8px;
   }
-
   .copy-btn {
-    background:#0078d4;
-    color:white;
-    border:none;
-    padding:8px 12px;
-    cursor:pointer;
-    border-radius:4px;
+    background:#0078d4; color:white; border:none; padding:8px 12px;
+    cursor:pointer; border-radius:8px;
   }
-
-  .copied {
-    background:#107c10 !important;
-  }
-
+  .copied { background:#107c10 !important; }
   .tag {
-    background:#eef;
-    padding:2px 8px;
-    border-radius:10px;
-    font-size:12px;
-    margin-right:5px;
-    display:inline-block;
+    background:#eef; padding:3px 9px; border-radius:999px; font-size:12px;
+    margin-right:6px; display:inline-block; margin-bottom:6px;
   }
-</style>
+  .tag.warn { background:#ffe9e9; }
+  .tag.good { background:#e9fff0; }
+  .tag.info { background:#eef6ff; }
 
+  .meter { height:10px; background:#eee; border-radius:999px; overflow:hidden; margin:8px 0 10px 0; }
+  .meter > div { height:100%; background:linear-gradient(90deg,#00a3ff,#6a5cff); width:0%; }
+  .scoreline { font-size:12px; color:#333; display:flex; justify-content:space-between; gap:10px; }
+  .hl { background: #fff59d; padding:0 2px; border-radius:4px; }
+
+  .aiBanner {
+    display:flex; gap:10px; align-items:center; justify-content:space-between;
+    background:#0b1220; color:#fff; padding:10px 12px; border-radius:12px; margin:10px 0 14px 0;
+  }
+  .aiBanner small { color:#c7d2fe; }
+  .pill { background:#1f2937; padding:4px 10px; border-radius:999px; font-size:12px; }
+  .ghost { background:#111827; color:#c7d2fe; border:1px solid #25304a; padding:8px 10px; border-radius:10px; cursor:pointer; }
+</style>
 </head>
 
 <body>
 
-<h1>PSSC Canned Reply Assistant v1.0</h1>
+<h1>PSSC Canned Reply Assistant v1.1 (WOW)</h1>
+<div class="sub">AI assist = recommends templates + explains why. It never writes new customer text.</div>
 
-<input id="search" placeholder="Search replies..." oninput="render()">
+<div class="aiBanner">
+  <div>
+    <div style="font-weight:700;">AI Suggestion Mode: <span class="pill" id="modeLabel">Smart (fuzzy + intent)</span></div>
+    <small>Everything runs in the browser. Agent stays in control.</small>
+  </div>
+  <button class="ghost" onclick="demoFill()">Load demo scenario</button>
+</div>
+
+<input id="search" placeholder="Search templates…" oninput="render()" />
 
 <div class="categories" id="categories"></div>
 
+<!-- AI SUGGESTION PANEL -->
 <div class="card">
-  <div class="title">AI Suggestions (template recommendations only)</div>
-  <div class="when">Paste case context — AI will suggest templates only.</div>
+  <div class="title">AI Suggestions (recommendations only)</div>
+  <div class="when">Paste a short case summary or customer message. The tool will recommend the best templates and show confidence + why.</div>
 
-  <textarea id="context" rows="5"></textarea>
+  <textarea id="context" rows="5" placeholder="Paste case context here…"></textarea>
 
-  <button class="copy-btn" onclick="suggest()">Suggest templates</button>
+  <div class="row" style="margin-bottom:10px;">
+    <button class="copy-btn" onclick="suggest()">Suggest templates</button>
+    <span id="aiStatus" style="font-size:12px; color:#555;"></span>
+  </div>
 
+  <div id="intentChips"></div>
   <div id="suggestions"></div>
 </div>
 
 <div id="templates"></div>
 
+<!-- Fuse.js for typo-tolerant search -->
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+
 <script>
-
-// ✅ Fixed Templates Array (your missing issue)
+/* =========================
+   TEMPLATE DATA
+========================= */
 const templates = [
-
   {
     category:"Follow Up",
     title:"Waiting on Customer – Initial Follow-Up",
-    when:"Customer has not responded.",
+    when:"Customer has not responded after requested information/logs.",
     body:`Hello,
 
-We’re still waiting on the requested information.
+We’re following up on your Lenovo Smart Collaboration support case.
 
-Please let us know how you'd like to proceed.
+To continue troubleshooting, we’re still waiting on the information requested in our previous message. Once we receive this, we can move forward right away.
+
+Please let us know how you’d like to proceed.
 
 Regards,
-Lenovo Support`
+Lenovo Smart Collaboration Support`
   },
-
   {
     category:"Closure",
     title:"Re-engagement Confirmation",
-    when:"Case quiet",
+    when:"Case has gone quiet and customer intent is unclear.",
     body:`Hello,
 
-Please confirm if you still need assistance.
+We wanted to check in to confirm whether you still need assistance with your Lenovo Smart Collaboration case.
 
-If not, we will close the case.
+If assistance is still needed, please reply and we’ll continue working with you. Otherwise, let us know and we’ll close the case.
 
-Regards,
-Lenovo Support`
+Thank you,
+Lenovo Smart Collaboration Support`
   },
-
   {
     category:"Closure",
     title:"Case Closed – No Response",
-    when:"No reply",
+    when:"Multiple follow-ups were sent and customer did not respond.",
     body:`Hello,
 
-We are closing the case due to no response.
+As we haven’t received a response, we’re closing this support case for now.
 
-Please reopen if needed.
+If you require further assistance, simply reply to this message or open a new case and we’ll be happy to help.
 
 Regards,
-Lenovo Support`
+Lenovo Smart Collaboration Support`
   },
-
   {
     category:"Scope",
     title:"Third-Party Ownership",
-    when:"Outside Lenovo scope",
+    when:"Issue appears outside Lenovo hardware support scope (vendor/platform).",
     body:`Hello,
 
-This appears to be a third-party issue.
+Based on our review, the behavior you’re experiencing appears related to a third-party component rather than Lenovo hardware.
 
-Please contact the appropriate vendor.
+Further troubleshooting will need to continue with the appropriate provider (Google, Microsoft, Logitech, etc.).
+
+Please let us know if you need guidance identifying the correct support channel.
 
 Regards,
-Lenovo Support`
+Lenovo Smart Collaboration Support`
   },
-
-  // ✅ YOUR ADDED TEMPLATES (fixed correctly inside array)
   {
     category:"Process",
     title:"RMA Requires Troubleshooting",
-    when:"RMA requested early",
+    when:"Customer requests replacement before eligibility is confirmed.",
     body:`Hello,
 
-We need to complete troubleshooting before replacement eligibility.
+To proceed with a replacement, we need to complete the required troubleshooting steps to confirm eligibility under warranty.
+
+Once completed, we will review next steps with you.
 
 Regards,
-Lenovo Support`
+Lenovo Smart Collaboration Support`
   },
-
   {
     category:"Follow Up",
     title:"Monitoring Confirmation",
-    when:"System stable",
+    when:"System appears stable; recommend observation window.",
     body:`Hello,
 
-Please monitor for 24–48 hours.
+At this time, the system appears to be functioning as expected.
 
-Let us know if issue returns.
+We recommend monitoring for the next 24–48 hours. If the issue returns, please let us know and we’ll continue troubleshooting.
 
 Regards,
-Lenovo Support`
+Lenovo Smart Collaboration Support`
   }
-
 ];
 
-// ✅ Improved Signals (more tolerant)
-const signals = {
-  "Waiting on Customer – Initial Follow-Up": ["no response","waiting","not responding","logs","info"],
-  "Re-engagement Confirmation": ["check","still need","confirm"],
-  "Case Closed – No Response": ["close","closing","no reply"],
-  "Third-Party Ownership": ["google","zoom","teams","third","vendor"],
-  "RMA Requires Troubleshooting": ["rma","replace","replacement"],
-  "Monitoring Confirmation": ["monitor","stable","observe"]
+/* =========================
+   AI SIGNALS (INTENT)
+========================= */
+const intentLexicon = [
+  { tag:"No response", kind:"warn", terms:["no response","not responding","silent","went quiet","haven't heard","no reply"] },
+  { tag:"Logs / info needed", kind:"info", terms:["logs","log bundle","diagnostic","collect logs","provide info","screenshot"] },
+  { tag:"Closure", kind:"warn", terms:["close","closing","final","wrap up","end case"] },
+  { tag:"Third-party", kind:"info", terms:["google","meet","logitech","microsoft","teams","zoom","vendor","third party"] },
+  { tag:"RMA request", kind:"warn", terms:["rma","replace","replacement","swap","exchange"] },
+  { tag:"Monitor", kind:"good", terms:["monitor","stable","watch","observe","24–48","24-48"] }
+];
+
+// Keyword signals per template (explainable)
+const templateSignals = {
+  "Waiting on Customer – Initial Follow-Up": ["no response","not responding","haven't heard","waiting","logs","diagnostic","provide","screenshot","info"],
+  "Re-engagement Confirmation": ["confirm","still need","check in","quiet","intent","continue","proceed"],
+  "Case Closed – No Response": ["close","closing","final","no reply","no response"],
+  "Third-Party Ownership": ["google","meet","logitech","microsoft","teams","zoom","third party","vendor","outside"],
+  "RMA Requires Troubleshooting": ["rma","replacement","replace","swap","dispatch","eligible","warranty"],
+  "Monitoring Confirmation": ["monitor","stable","observe","24","48","watch"]
 };
 
 let activeCategory = "All";
 
-// ✅ Copy function
+/* =========================
+   UTILITIES
+========================= */
+function norm(s){
+  return (s||"").toLowerCase().replace(/[^\w\s\-–]/g," ").replace(/\s+/g," ").trim();
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
 function copyText(btn,text){
   navigator.clipboard.writeText(text);
   btn.textContent="Copied ✓";
   btn.classList.add("copied");
-  setTimeout(()=>{btn.textContent="Copy";btn.classList.remove("copied");},1500);
+  setTimeout(()=>{ btn.textContent="Copy"; btn.classList.remove("copied"); }, 1500);
 }
 
-// ✅ Render Templates
-function render(){
-  const q=document.getElementById("search").value.toLowerCase();
-  const list=document.getElementById("templates");
-  list.innerHTML="";
-
-  templates.forEach(t=>{
-    if (activeCategory==="All"||t.category===activeCategory) {
-      if (t.title.toLowerCase().includes(q) || t.body.toLowerCase().includes(q)) {
-
-        list.innerHTML+=`
-        <div class="card">
-          <div class="title">${t.title}</div>
-          <div class="when">${t.when}</div>
-          <div class="body">${t.body}</div>
-          <button class="copy-btn" onclick="copyText(this,\`${t.body}\`)">Copy</button>
-        </div>`;
-      }
-    }
-  });
-}
-
-// ✅ Categories
 function renderCategories(){
   const cats=["All",...new Set(templates.map(t=>t.category))];
   const c=document.getElementById("categories");
   c.innerHTML="";
-
   cats.forEach(cat=>{
-    c.innerHTML+=`<button class="${cat===activeCategory?'active':''}" onclick="activeCategory='${cat}';renderCategories();render();">${cat}</button>`;
+    const cls = (cat===activeCategory) ? "active" : "";
+    c.innerHTML += `<button class="${cls}" onclick="activeCategory='${cat}';renderCategories();render();">${cat}</button>`;
   });
 }
 
-// ✅ AI Suggestion (fixed logic)
-function suggest(){
-  const ctx=document.getElementById("context").value.toLowerCase();
-  const out=document.getElementById("suggestions");
-
-  out.innerHTML="<h3>Top Suggestions</h3>";
-
-  let results = templates.map(t=>{
-    let score=0;
-    let hits=[];
-
-    (signals[t.title]||[]).forEach(k=>{
-      if (ctx.includes(k)) {
-        score++;
-        hits.push(k);
-      }
+function render(){
+  const q=norm(document.getElementById("search").value);
+  const list=document.getElementById("templates");
+  list.innerHTML="";
+  templates
+    .filter(t => (activeCategory==="All"||t.category===activeCategory))
+    .filter(t => !q || norm(t.title).includes(q) || norm(t.body).includes(q))
+    .forEach(t=>{
+      list.innerHTML += `
+        <div class="card">
+          <div class="title">${escapeHtml(t.title)}</div>
+          <div class="when">When to use: ${escapeHtml(t.when)}</div>
+          <div class="body">${escapeHtml(t.body)}</div>
+          <button class="copy-btn" onclick="copyText(this, \`${t.body.replace(/`/g,"")}\`)">Copy</button>
+        </div>
+      `;
     });
+}
 
-    return {...t, score, hits};
-  });
+/* =========================
+   WOW AI: INTENT + FUZZY RANKING
+========================= */
+const fuse = new Fuse(templates, {
+  keys: [
+    { name:"title", weight: 0.55 },
+    { name:"when", weight: 0.20 },
+    { name:"body", weight: 0.25 }
+  ],
+  includeScore: true,
+  threshold: 0.38,
+  ignoreLocation: true
+});
 
-  let filtered = results.filter(r=>r.score>0).sort((a,b)=>b.score-a.score).slice(0,3);
+function detectIntents(text){
+  const t = norm(text);
+  const hits = [];
+  for(const item of intentLexicon){
+    for(const term of item.terms){
+      if(t.includes(norm(term))){
+        hits.push(item);
+        break;
+      }
+    }
+  }
+  // de-dup by tag
+  const map = new Map();
+  hits.forEach(h => map.set(h.tag, h));
+  return [...map.values()];
+}
 
-  if(filtered.length===0){
-    out.innerHTML+="<p>No match — add more context</p>";
+function highlightMatches(context, words){
+  let out = escapeHtml(context);
+  // highlight only first ~8 words to keep it readable
+  const uniq = [...new Set(words)].slice(0,8).sort((a,b)=>b.length-a.length);
+  for(const w of uniq){
+    const safe = escapeHtml(w);
+    // naive highlight - replace occurrences in escaped text
+    const re = new RegExp(safe.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), "ig");
+    out = out.replace(re, (m)=>`<span class="hl">${m}</span>`);
+  }
+  return out;
+}
+
+function confidenceFrom(score){
+  // Fuse score: 0 = perfect match, higher = worse
+  // convert to 0..100 confidence
+  const c = Math.max(0, Math.min(100, Math.round((1 - score) * 100)));
+  return c;
+}
+
+function suggest(){
+  const ctxRaw = document.getElementById("context").value;
+  const ctx = norm(ctxRaw);
+  const aiStatus = document.getElementById("aiStatus");
+  const chips = document.getElementById("intentChips");
+  const out = document.getElementById("suggestions");
+
+  chips.innerHTML = "";
+  out.innerHTML = "";
+
+  if(!ctx){
+    aiStatus.textContent = "Paste some case context first.";
     return;
   }
 
-  filtered.forEach(t=>{
-    out.innerHTML+=`
+  aiStatus.textContent = "Thinking… (local recommend + explain)";
+  
+  // 1) intent chips
+  const intents = detectIntents(ctxRaw);
+  if(intents.length){
+    chips.innerHTML = `<div class="when" style="margin-bottom:6px;">Detected intent:</div>` +
+      intents.map(i => `<span class="tag ${i.kind}">${escapeHtml(i.tag)}</span>`).join("");
+  } else {
+    chips.innerHTML = `<div class="when">Detected intent: <span class="tag info">General</span></div>`;
+  }
+
+  // 2) fuzzy ranking
+  const results = fuse.search(ctxRaw).slice(0,6);
+
+  // 3) add explainable keyword “why”
+  const enriched = results.map(r=>{
+    const t = r.item;
+    const sigs = templateSignals[t.title] || [];
+    const why = sigs.filter(k => ctx.includes(norm(k)));
+    const conf = confidenceFrom(r.score ?? 0.8);
+    return { ...t, fuseScore: r.score ?? 0.8, confidence: conf, why };
+  })
+  // boost if matches explicit template signals (makes it feel smarter)
+  .sort((a,b)=>{
+    const aBoost = a.why.length * 0.08;
+    const bBoost = b.why.length * 0.08;
+    return (b.confidence + bBoost*100) - (a.confidence + aBoost*100);
+  })
+  .slice(0,3);
+
+  if(!enriched.length){
+    aiStatus.textContent = "No strong match — add more detail (e.g., logs, no response, close, vendor).";
+    return;
+  }
+
+  aiStatus.textContent = "Top suggestions:";
+
+  // show a highlighted context preview
+  const allWhyWords = enriched.flatMap(e => e.why).slice(0,10);
+  const ctxPreview = highlightMatches(ctxRaw, allWhyWords);
+  out.innerHTML += `
     <div class="card">
-      <div class="title">${t.title}</div>
-      <div class="when">Matched: ${t.hits.map(h=>`<span class="tag">${h}</span>`).join("")}</div>
-      <div class="body">${t.body}</div>
-      <button class="copy-btn" onclick="copyText(this,\`${t.body}\`)">Copy</button>
+      <div class="title">AI Context Read (why it’s recommending)</div>
+      <div class="when">Highlighted phrases influenced the ranking</div>
+      <div class="body">${ctxPreview}</div>
     </div>
+  `;
+
+  enriched.forEach((t, idx)=>{
+    const whyTags = t.why.length
+      ? t.why.slice(0,8).map(w=>`<span class="tag info">${escapeHtml(w)}</span>`).join("")
+      : `<span class="tag info">Fuzzy similarity match</span>`;
+
+    out.innerHTML += `
+      <div class="card">
+        <div class="title">${idx+1}. ${escapeHtml(t.title)}</div>
+        <div class="when">Why suggested: ${whyTags}</div>
+
+        <div class="scoreline">
+          <span>Confidence</span>
+          <strong>${t.confidence}%</strong>
+        </div>
+        <div class="meter"><div style="width:${t.confidence}%;"></div></div>
+
+        <div class="when">When to use: ${escapeHtml(t.when)}</div>
+        <div class="body">${escapeHtml(t.body)}</div>
+        <button class="copy-btn" onclick="copyText(this, \`${t.body.replace(/`/g,"")}\`)">Copy this reply</button>
+      </div>
     `;
   });
 }
 
-// ✅ init
+function demoFill(){
+  const demo = "Customer has not responded after we requested logs and a screenshot. Considering closing the case if they no longer need help.";
+  document.getElementById("context").value = demo;
+  suggest();
+}
+
+/* init */
 renderCategories();
 render();
-
 </script>
 
 </body>
