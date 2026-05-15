@@ -3,26 +3,22 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>PSSC MVP Assistant v1.2</title>
+<title>PSSC MVP Assistant v1.3</title>
 
 <style>
   :root{
-    /* Lenovo-ish vibe: clean, bold, red accent (approx) */
     --bg:#0b1220;
     --panel:#0f1a2e;
     --card:#111c33;
     --muted:#9fb0d0;
     --text:#e8eefc;
-    --accent:#e2231a; /* Lenovo red feel */
-    --accent2:#0078d4; /* MS blue accent as secondary */
+    --accent:#e2231a;
+    --accent2:#0078d4;
     --good:#22c55e;
     --warn:#f59e0b;
-    --bad:#ef4444;
-    --chip:#19284a;
     --line:#223357;
-
-    /* Typography: Montserrat recommended in Lenovo guidelines, fallback safe */
-    --font: "Montserrat", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    --chip:#19284a;
+    --font:"Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   }
 
   body{
@@ -32,33 +28,24 @@
     color:var(--text);
     font-family:var(--font);
   }
-
   .wrap{ max-width: 980px; margin: 0 auto; }
 
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
-    background: linear-gradient(90deg, rgba(226,35,26,0.25), rgba(15,26,46,0.0));
+    background: linear-gradient(90deg, rgba(226,35,26,0.22), rgba(15,26,46,0.0));
     border:1px solid var(--line);
     border-radius:14px;
     padding:14px 16px;
     margin-bottom:14px;
   }
-  .brand{
-    display:flex; gap:12px; align-items:center;
-  }
+  .brand{ display:flex; gap:12px; align-items:center; }
   .logoMark{
     width:12px; height:36px; border-radius:8px;
     background: var(--accent);
     box-shadow: 0 0 0 4px rgba(226,35,26,0.12);
   }
-  .titleBlock h1{
-    font-size:18px; margin:0;
-    letter-spacing:0.2px;
-  }
-  .titleBlock .sub{
-    margin-top:3px;
-    font-size:12px; color:var(--muted);
-  }
+  .titleBlock h1{ font-size:18px; margin:0; letter-spacing:0.2px; }
+  .titleBlock .sub{ margin-top:3px; font-size:12px; color:var(--muted); }
   .pill{
     display:inline-flex; align-items:center; gap:8px;
     background: rgba(25,40,74,0.7);
@@ -75,24 +62,32 @@
     grid-template-columns: 1.1fr 0.9fr;
     gap:14px;
   }
-
   .panel{
     background: rgba(15,26,46,0.88);
     border: 1px solid var(--line);
     border-radius:14px;
     padding:14px;
   }
-
   .sectionTitle{
     display:flex; align-items:center; justify-content:space-between;
     margin-bottom:10px;
+    gap:10px;
   }
-  .sectionTitle h2{
-    margin:0; font-size:14px; letter-spacing:0.2px;
+  .sectionTitle h2{ margin:0; font-size:14px; letter-spacing:0.2px; }
+  .hint{ font-size:12px; color:var(--muted); }
+
+  /* Demo buttons row */
+  .demoRow{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 12px 0; }
+  .demoBtn{
+    background: rgba(25,40,74,0.55);
+    border: 1px solid var(--line);
+    color:#d7e4ff;
+    padding:8px 10px;
+    border-radius:999px;
+    font-size:12px;
+    cursor:pointer;
   }
-  .hint{
-    font-size:12px; color:var(--muted);
-  }
+  .demoBtn:hover{ border-color: rgba(0,120,212,0.7); }
 
   /* Chat */
   .chat{
@@ -122,6 +117,26 @@
   .msg .text{
     font-size:13px; color:#eef3ff;
     line-height: 1.35;
+    white-space: pre-wrap;
+  }
+
+  /* Typing indicator */
+  .typingLine{
+    display:flex; align-items:center; gap:10px;
+    color:#cfe0ff;
+    font-size:12px;
+  }
+  .typingDots{ display:inline-flex; gap:5px; align-items:center; }
+  .typingDots span{
+    width:7px; height:7px; border-radius:999px;
+    background: rgba(207,224,255,0.85);
+    animation: bounce 1.1s infinite ease-in-out;
+  }
+  .typingDots span:nth-child(2){ animation-delay: 0.15s; opacity:0.85; }
+  .typingDots span:nth-child(3){ animation-delay: 0.30s; opacity:0.7; }
+  @keyframes bounce{
+    0%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-5px); }
   }
 
   .composer{
@@ -152,12 +167,6 @@
     border:1px solid rgba(0,120,212,0.55);
   }
   .btn:active{ transform: translateY(1px); }
-  .btn.secondary{
-    width:auto;
-    background: transparent;
-    border:1px solid var(--line);
-    color:#cfe0ff;
-  }
 
   /* Suggestions */
   .chips{ margin-top: 10px; display:flex; flex-wrap:wrap; gap:8px; }
@@ -180,18 +189,9 @@
     padding:12px;
     margin-top:10px;
   }
-  .sTitle{
-    display:flex; align-items:center; justify-content:space-between;
-    gap:10px;
-  }
-  .sTitle h3{
-    margin:0; font-size:13px;
-  }
-  .meta{
-    font-size:12px; color:var(--muted);
-    margin-top:6px;
-    line-height:1.3;
-  }
+  .sTitle{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .sTitle h3{ margin:0; font-size:13px; }
+  .meta{ font-size:12px; color:var(--muted); margin-top:6px; line-height:1.3; }
 
   .meter{
     height:10px;
@@ -207,12 +207,7 @@
     background: linear-gradient(90deg, rgba(226,35,26,0.9), rgba(0,120,212,0.95));
   }
 
-  .why{
-    margin-top:10px;
-    display:flex;
-    flex-wrap:wrap;
-    gap:6px;
-  }
+  .why{ margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
   .tag{
     background: rgba(25,40,74,0.6);
     border:1px solid rgba(34,51,87,0.65);
@@ -233,9 +228,7 @@
     padding:10px;
   }
 
-  .copyRow{
-    display:flex; gap:10px; margin-top:10px; align-items:center;
-  }
+  .copyRow{ display:flex; gap:10px; margin-top:10px; align-items:center; }
   .copyBtn{
     border:none;
     border-radius:12px;
@@ -272,7 +265,7 @@
     <div class="brand">
       <div class="logoMark" aria-hidden="true"></div>
       <div class="titleBlock">
-        <h1>PSSC MVP Assistant v1.2</h1>
+        <h1>PSSC MVP Assistant v1.3</h1>
         <div class="sub">Conversational “AI” that <b>recommends templates</b> + explains why. It never writes customer text.</div>
       </div>
     </div>
@@ -284,14 +277,20 @@
     <div class="panel">
       <div class="sectionTitle">
         <h2>Chat with MVP</h2>
-        <button class="btn secondary" onclick="loadDemo()">Load Demo</button>
+        <div class="hint">Demo-ready: 1 click scenarios</div>
       </div>
-      <div class="hint">Paste a quick case summary. MVP will interpret intent and suggest the best canned replies.</div>
+
+      <!-- Demo scenario buttons -->
+      <div class="demoRow">
+        <button class="demoBtn" onclick="runDemo('no_response_logs')">No Response / Logs Requested</button>
+        <button class="demoBtn" onclick="runDemo('third_party_scope')">Third‑Party Scope (Google/Logitech)</button>
+        <button class="demoBtn" onclick="runDemo('rma_request')">RMA Request</button>
+      </div>
 
       <div class="chat" id="chat"></div>
 
       <div class="composer">
-        <textarea id="userInput" placeholder="Example: Customer stopped responding after logs request. Considering closure."></textarea>
+        <textarea id="userInput" placeholder="Paste a case summary…"></textarea>
         <button class="btn" onclick="sendMessage()">Ask MVP</button>
       </div>
 
@@ -428,8 +427,7 @@ const templateSignals = {
 };
 
 /* =========================
-   LIGHTWEIGHT “AI” MATCHING
-   (local fuzzy similarity)
+   LIGHTWEIGHT “AI” MATCHING (local)
 ========================= */
 function norm(s){
   return (s||"").toLowerCase()
@@ -468,14 +466,12 @@ function detectIntents(text){
       if(t.includes(norm(term))){ found.push(item); break; }
     }
   }
-  // de-dupe by label
   const m = new Map();
   found.forEach(x=>m.set(x.label,x));
   return [...m.values()];
 }
 
 function confidencePct(sim){
-  // sim is 0..1
   return Math.max(0, Math.min(100, Math.round(sim * 100)));
 }
 
@@ -483,15 +479,15 @@ function scoreTemplate(t, ctx){
   const ctxN = norm(ctx);
   const sigs = templateSignals[t.title] || [];
   const why = sigs.filter(k => ctxN.includes(norm(k)));
-  // similarity between ctx and title/when/body summary
+
   const simTitle = dice(ctx, t.title);
   const simWhen  = dice(ctx, t.when);
   const simBody  = dice(ctx, t.body.slice(0,260));
-  // weighted similarity
+
   let sim = (0.45*simTitle) + (0.25*simWhen) + (0.30*simBody);
-  // explicit keyword boost = feels more “AI”
   sim += Math.min(0.18, why.length * 0.04);
   sim = Math.min(1, sim);
+
   return { sim, why };
 }
 
@@ -503,22 +499,70 @@ const statusEl = document.getElementById("status");
 const intentEl = document.getElementById("intent");
 const suggEl = document.getElementById("suggestions");
 
-function addMsg(role, text){
-  const div = document.createElement("div");
-  div.className = `msg ${role}`;
-  div.innerHTML = `
-    <div class="who">${role === "user" ? "You" : "MVP"}</div>
-    <div class="text">${escapeHtml(text).replace(/\n/g,"<br>")}</div>
-  `;
-  chatEl.appendChild(div);
-  chatEl.scrollTop = chatEl.scrollHeight;
-}
-
 function escapeHtml(s){
   return (s||"")
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+function addMsg(role, text){
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="who">${role === "user" ? "You" : "MVP"}</div>
+    <div class="text">${escapeHtml(text)}</div>
+  `;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
+}
+
+/* ---- Typing indicator helpers ---- */
+function addTyping(){
+  const div = document.createElement("div");
+  div.className = "msg mvp";
+  div.dataset.typing = "true";
+  div.innerHTML = `
+    <div class="who">MVP</div>
+    <div class="typingLine">
+      MVP is thinking…
+      <span class="typingDots"><span></span><span></span><span></span></span>
+    </div>
+  `;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
+}
+function removeTyping(node){
+  if(node && node.parentNode) node.parentNode.removeChild(node);
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+async function typeOutMVP(text){
+  // create empty MVP message bubble, then type into it
+  const div = document.createElement("div");
+  div.className = "msg mvp";
+  div.innerHTML = `
+    <div class="who">MVP</div>
+    <div class="text" id="mvpText"></div>
+  `;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  const textEl = div.querySelector(".text");
+  const safe = text; // we escape per-char to keep it safe
+  let built = "";
+  for(let i=0;i<safe.length;i++){
+    built += safe[i];
+    textEl.textContent = built;
+    // speed: faster for spaces, slower for punctuation (feels human)
+    const ch = safe[i];
+    const delay = (ch === "." || ch === "!" || ch === "?") ? 22 : (ch === " " ? 6 : 10);
+    await sleep(delay);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+}
+
+/* Suggestions rendering */
 function setIntentChips(intents){
   intentEl.innerHTML = "";
   if(!intents.length){
@@ -554,14 +598,14 @@ function renderSuggestions(ctx){
       <div class="meta">${escapeHtml(t.when)}</div>
 
       <div class="meter"><div class="bar" style="width:${t.conf}%;"></div></div>
-      <div class="scoreline"><span>Confidence</span><b>${t.conf}%</b></div>
+      <div class="meta"><b>Confidence:</b> ${t.conf}%</div>
 
       <div class="why">${whyTags}</div>
       <div class="replyBox">${escapeHtml(t.body)}</div>
 
       <div class="copyRow">
         <button class="copyBtn" onclick="copyReply(\`${safeBody}\`, this)">Copy Reply</button>
-        <div class="copyState">Suggest‑only: you choose and paste into Zoho/Email.</div>
+        <div class="copyState">Suggest‑only: you choose and paste.</div>
       </div>
     `;
     suggEl.appendChild(card);
@@ -574,53 +618,66 @@ function copyReply(text, btn){
   navigator.clipboard.writeText(text);
   const old = btn.textContent;
   btn.textContent = "Copied ✓";
-  btn.style.background = "linear-gradient(180deg, #2ad06f, #0e9f4a)";
   setTimeout(()=>{ btn.textContent = old; }, 1200);
 }
 
 function mvpResponse(ctx, intents, top){
-  // Personality but professional: short, helpful, explains, never writes new text.
   const intentNames = intents.map(i=>i.label);
   const topTitle = top?.[0]?.title || "a follow-up template";
 
   const lines = [];
-  lines.push(`Got it. Here’s what I’m seeing: ${intentNames.length ? intentNames.join(", ") : "General"}.\n`);
-  lines.push(`My top pick is **${topTitle}** because it matches your case context best.\n`);
-  lines.push(`I’ll only recommend templates — you stay in control of what gets sent.`);
-  return lines.join("\n");
+  lines.push(`Got it. I’m seeing: ${intentNames.length ? intentNames.join(", ") : "General"}.\n`);
+  lines.push(`Top pick: ${topTitle}.\n`);
+  lines.push(`I’m only recommending approved templates — you stay in control of what gets sent.`);
+  return lines.join("");
 }
 
-function sendMessage(){
+async function sendMessage(){
   const box = document.getElementById("userInput");
   const ctx = box.value.trim();
   if(!ctx) return;
 
   addMsg("user", ctx);
+  box.value = "";
 
   statusEl.textContent = "Analyzing…";
   const intents = detectIntents(ctx);
   setIntentChips(intents);
 
   const top = renderSuggestions(ctx);
-  addMsg("mvp", mvpResponse(ctx, intents, top));
+
+  // typing animation + typewriter response
+  const typing = addTyping();
+  await sleep(650);
+  removeTyping(typing);
+  await typeOutMVP(mvpResponse(ctx, intents, top));
 
   statusEl.textContent = "Suggested (top 3)";
-  box.value = "";
 }
 
-function loadDemo(){
-  document.getElementById("userInput").value =
-    "Customer stopped responding after we requested logs and a screenshot. Considering closure if they no longer need help.";
-  sendMessage();
+/* Demo scenarios */
+const demos = {
+  no_response_logs: "Customer stopped responding after we requested logs and a screenshot. We cannot proceed without the diagnostic bundle. Considering closure if they no longer need help.",
+  third_party_scope: "Customer reports issue occurs only inside Google Meet hardware integration / Logitech peripheral behavior. Lenovo hardware appears normal in Windows. Likely third-party scope.",
+  rma_request: "Customer is requesting an RMA/replacement, but troubleshooting hasn’t been completed yet. Need to confirm eligibility under warranty before replacement."
+};
+
+async function runDemo(key){
+  const text = demos[key] || "";
+  const box = document.getElementById("userInput");
+  box.value = text;
+  await sendMessage();
 }
 
-/* init chat greeting */
-addMsg("mvp",
+/* init greeting */
+(async function init(){
+  await typeOutMVP(
 `Hey 👋 I’m MVP — your support co‑pilot.
 
-Drop a case summary and I’ll recommend the best canned replies *and* explain why.
-No new customer text is generated — I only suggest from your approved library.`);
+Drop a case summary and I’ll recommend the best canned replies and explain why.
+No new customer text is generated — I only suggest from your approved library.`
+  );
+})();
 </script>
 </body>
 </html>
-``
