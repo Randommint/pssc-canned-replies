@@ -1,135 +1,626 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>PSSC MVP Assistant</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>PSSC MVP Assistant v1.2</title>
 
 <style>
-body { font-family: Segoe UI; background:#0f172a; color:white; margin:0; padding:20px;}
-.chat { max-width:800px; margin:auto;}
-.msg { padding:12px; margin:10px 0; border-radius:10px;}
-.user { background:#1e293b; text-align:right;}
-.ai { background:#111827;}
-input, textarea {
-  width:100%; padding:10px; margin-top:10px;
-  border-radius:8px; border:none;
-}
-button {
-  margin-top:10px;
-  padding:10px;
-  width:100%;
-  background:#6366f1;
-  color:white;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
-}
-.template {
-  background:#1f2937;
-  padding:10px;
-  margin-top:8px;
-  border-radius:8px;
-}
-.copy-btn {
-  margin-top:6px;
-  padding:6px;
-  background:#22c55e;
-}
+  :root{
+    /* Lenovo-ish vibe: clean, bold, red accent (approx) */
+    --bg:#0b1220;
+    --panel:#0f1a2e;
+    --card:#111c33;
+    --muted:#9fb0d0;
+    --text:#e8eefc;
+    --accent:#e2231a; /* Lenovo red feel */
+    --accent2:#0078d4; /* MS blue accent as secondary */
+    --good:#22c55e;
+    --warn:#f59e0b;
+    --bad:#ef4444;
+    --chip:#19284a;
+    --line:#223357;
+
+    /* Typography: Montserrat recommended in Lenovo guidelines, fallback safe */
+    --font: "Montserrat", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  }
+
+  body{
+    margin:0;
+    padding:22px;
+    background: radial-gradient(1200px 700px at 20% 0%, #121f3d 0%, var(--bg) 60%);
+    color:var(--text);
+    font-family:var(--font);
+  }
+
+  .wrap{ max-width: 980px; margin: 0 auto; }
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    background: linear-gradient(90deg, rgba(226,35,26,0.25), rgba(15,26,46,0.0));
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px 16px;
+    margin-bottom:14px;
+  }
+  .brand{
+    display:flex; gap:12px; align-items:center;
+  }
+  .logoMark{
+    width:12px; height:36px; border-radius:8px;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(226,35,26,0.12);
+  }
+  .titleBlock h1{
+    font-size:18px; margin:0;
+    letter-spacing:0.2px;
+  }
+  .titleBlock .sub{
+    margin-top:3px;
+    font-size:12px; color:var(--muted);
+  }
+  .pill{
+    display:inline-flex; align-items:center; gap:8px;
+    background: rgba(25,40,74,0.7);
+    border:1px solid var(--line);
+    padding:8px 10px;
+    border-radius:999px;
+    font-size:12px;
+    color:#cfe0ff;
+  }
+  .dot{ width:8px; height:8px; border-radius:999px; background:var(--good); }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap:14px;
+  }
+
+  .panel{
+    background: rgba(15,26,46,0.88);
+    border: 1px solid var(--line);
+    border-radius:14px;
+    padding:14px;
+  }
+
+  .sectionTitle{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .sectionTitle h2{
+    margin:0; font-size:14px; letter-spacing:0.2px;
+  }
+  .hint{
+    font-size:12px; color:var(--muted);
+  }
+
+  /* Chat */
+  .chat{
+    height: 460px;
+    overflow:auto;
+    padding-right:6px;
+  }
+  .msg{
+    padding:10px 12px;
+    border-radius:12px;
+    margin:10px 0;
+    border:1px solid rgba(34,51,87,0.7);
+  }
+  .msg.user{
+    background: rgba(25,40,74,0.55);
+    margin-left: 18%;
+  }
+  .msg.mvp{
+    background: rgba(17,28,51,0.75);
+    margin-right: 18%;
+    border-left: 4px solid rgba(226,35,26,0.7);
+  }
+  .msg .who{
+    font-weight:700; font-size:12px; color:#d7e4ff;
+    margin-bottom:6px;
+  }
+  .msg .text{
+    font-size:13px; color:#eef3ff;
+    line-height: 1.35;
+  }
+
+  .composer{
+    display:flex; gap:10px; margin-top:12px;
+  }
+  textarea{
+    flex:1;
+    min-height:64px;
+    resize: vertical;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background: rgba(17,28,51,0.65);
+    color: var(--text);
+    padding:10px 12px;
+    font-family: var(--font);
+    font-size:13px;
+  }
+  .btn{
+    width: 160px;
+    border:none;
+    border-radius:12px;
+    background: linear-gradient(180deg, #2a7fff, #0c5dc7);
+    color:white;
+    cursor:pointer;
+    font-weight:700;
+    letter-spacing:0.2px;
+    padding:12px 12px;
+    border:1px solid rgba(0,120,212,0.55);
+  }
+  .btn:active{ transform: translateY(1px); }
+  .btn.secondary{
+    width:auto;
+    background: transparent;
+    border:1px solid var(--line);
+    color:#cfe0ff;
+  }
+
+  /* Suggestions */
+  .chips{ margin-top: 10px; display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    background: rgba(25,40,74,0.75);
+    border: 1px solid var(--line);
+    color:#d7e4ff;
+    padding:5px 10px;
+    border-radius: 999px;
+    font-size:12px;
+  }
+  .chip.warn{ border-color: rgba(245,158,11,0.6); }
+  .chip.good{ border-color: rgba(34,197,94,0.6); }
+  .chip.info{ border-color: rgba(59,130,246,0.6); }
+
+  .suggestCard{
+    background: rgba(17,28,51,0.75);
+    border: 1px solid var(--line);
+    border-radius:14px;
+    padding:12px;
+    margin-top:10px;
+  }
+  .sTitle{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+  }
+  .sTitle h3{
+    margin:0; font-size:13px;
+  }
+  .meta{
+    font-size:12px; color:var(--muted);
+    margin-top:6px;
+    line-height:1.3;
+  }
+
+  .meter{
+    height:10px;
+    background: rgba(255,255,255,0.08);
+    border-radius:999px;
+    overflow:hidden;
+    margin-top:10px;
+    border:1px solid rgba(34,51,87,0.6);
+  }
+  .bar{
+    height:100%;
+    width:0%;
+    background: linear-gradient(90deg, rgba(226,35,26,0.9), rgba(0,120,212,0.95));
+  }
+
+  .why{
+    margin-top:10px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .tag{
+    background: rgba(25,40,74,0.6);
+    border:1px solid rgba(34,51,87,0.65);
+    padding:3px 8px;
+    border-radius:999px;
+    font-size:12px;
+    color:#cfe0ff;
+  }
+
+  .replyBox{
+    margin-top:10px;
+    white-space: pre-wrap;
+    font-size:13px;
+    color:#eef3ff;
+    background: rgba(15,26,46,0.75);
+    border:1px solid rgba(34,51,87,0.65);
+    border-radius:12px;
+    padding:10px;
+  }
+
+  .copyRow{
+    display:flex; gap:10px; margin-top:10px; align-items:center;
+  }
+  .copyBtn{
+    border:none;
+    border-radius:12px;
+    padding:10px 12px;
+    cursor:pointer;
+    font-weight:700;
+    background: linear-gradient(180deg, #2ad06f, #0e9f4a);
+    color:#07210f;
+    border:1px solid rgba(34,197,94,0.5);
+    min-width: 120px;
+  }
+  .copyState{ font-size:12px; color:var(--muted); }
+
+  .footerNote{
+    margin-top:10px;
+    font-size:11px;
+    color:#b6c3e2;
+    opacity:0.9;
+  }
+
+  @media (max-width: 900px){
+    .grid{ grid-template-columns: 1fr; }
+    .btn{ width:100%; }
+    .msg.user{ margin-left: 0; }
+    .msg.mvp{ margin-right: 0; }
+  }
 </style>
 </head>
 
 <body>
+<div class="wrap">
 
-<div class="chat" id="chat">
+  <div class="topbar">
+    <div class="brand">
+      <div class="logoMark" aria-hidden="true"></div>
+      <div class="titleBlock">
+        <h1>PSSC MVP Assistant v1.2</h1>
+        <div class="sub">Conversational “AI” that <b>recommends templates</b> + explains why. It never writes customer text.</div>
+      </div>
+    </div>
+    <div class="pill"><span class="dot"></span> Suggest‑Only Mode</div>
+  </div>
 
-<div class="msg ai">
-<strong>MVP:</strong>  
-Hey 👋 I’m MVP — your support co-pilot.  
-Drop a case summary and I’ll suggest the best move.
+  <div class="grid">
+    <!-- LEFT: Chat -->
+    <div class="panel">
+      <div class="sectionTitle">
+        <h2>Chat with MVP</h2>
+        <button class="btn secondary" onclick="loadDemo()">Load Demo</button>
+      </div>
+      <div class="hint">Paste a quick case summary. MVP will interpret intent and suggest the best canned replies.</div>
+
+      <div class="chat" id="chat"></div>
+
+      <div class="composer">
+        <textarea id="userInput" placeholder="Example: Customer stopped responding after logs request. Considering closure."></textarea>
+        <button class="btn" onclick="sendMessage()">Ask MVP</button>
+      </div>
+
+      <div class="footerNote">
+        MVP is a “smart recommender” — it only suggests from your approved templates and explains the match. No new customer text is generated.
+      </div>
+    </div>
+
+    <!-- RIGHT: Suggestions -->
+    <div class="panel">
+      <div class="sectionTitle">
+        <h2>Top Suggestions</h2>
+        <div class="hint" id="status">Waiting for input…</div>
+      </div>
+
+      <div id="intent" class="chips"></div>
+      <div id="suggestions"></div>
+    </div>
+  </div>
+
 </div>
-
-</div>
-
-<textarea id="input" placeholder="Paste case context..."></textarea>
-<button onclick="send()">Ask MVP</button>
 
 <script>
-
+/* =========================
+   TEMPLATE LIBRARY (approved)
+========================= */
 const templates = [
-{
-title:"Waiting on Customer",
-body:`We’re waiting on your response to proceed. Please provide the requested info.`
-},
-{
-title:"Re-engagement",
-body:`Do you still need assistance? If not we’ll close this case.`
-},
-{
-title:"Close - No Response",
-body:`We are closing the case due to inactivity.`
-},
-{
-title:"Third Party",
-body:`This issue falls outside Lenovo scope and needs vendor support.`
-},
-{
-title:"RMA Required Troubleshooting",
-body:`We need troubleshooting completed before replacement approval.`
-}
+  {
+    category: "Follow Up",
+    title: "Waiting on Customer – Initial Follow-Up",
+    when: "Customer has not responded after requested information/logs.",
+    body: `Hello,
+
+We’re following up on your Lenovo Smart Collaboration support case.
+
+To continue troubleshooting, we’re still waiting on the information requested in our previous message. Once we receive this, we can move forward right away.
+
+Please let us know how you’d like to proceed.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category: "Closure",
+    title: "Re-engagement Confirmation",
+    when: "Case has gone quiet; confirm intent before closing.",
+    body: `Hello,
+
+We wanted to check in to confirm whether you still need assistance with your Lenovo Smart Collaboration case.
+
+If assistance is still needed, please reply and we’ll continue working with you. Otherwise, let us know and we’ll close the case.
+
+Thank you,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category: "Closure",
+    title: "Case Closed – No Response",
+    when: "Multiple follow-ups were sent and customer did not respond.",
+    body: `Hello,
+
+As we haven’t received a response, we’re closing this support case for now.
+
+If you require further assistance, simply reply to this message or open a new case and we’ll be happy to help.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category: "Scope",
+    title: "Third-Party Ownership",
+    when: "Issue appears outside Lenovo hardware scope (vendor/platform).",
+    body: `Hello,
+
+Based on our review, the behavior you’re experiencing appears related to a third-party component rather than Lenovo hardware.
+
+Further troubleshooting will need to continue with the appropriate provider (Google, Microsoft, Logitech, etc.).
+
+Please let us know if you need guidance identifying the correct support channel.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category: "Process",
+    title: "RMA Requires Troubleshooting",
+    when: "Customer requests replacement before eligibility is confirmed.",
+    body: `Hello,
+
+To proceed with a replacement, we need to complete the required troubleshooting steps to confirm eligibility under warranty.
+
+Once completed, we will review next steps with you.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  },
+  {
+    category: "Follow Up",
+    title: "Monitoring Confirmation",
+    when: "System appears stable; recommend observation window.",
+    body: `Hello,
+
+At this time, the system appears to be functioning as expected.
+
+We recommend monitoring for the next 24–48 hours. If the issue returns, please let us know and we’ll continue troubleshooting.
+
+Regards,
+Lenovo Smart Collaboration Support`
+  }
 ];
 
-function send(){
-  const txt = document.getElementById("input").value.toLowerCase();
-  const chat = document.getElementById("chat");
+/* =========================
+   INTENT LEXICON (explainable)
+========================= */
+const intentLexicon = [
+  { label:"No response", kind:"warn", terms:["no response","not responding","silent","went quiet","haven't heard","no reply","no update"] },
+  { label:"Logs / info needed", kind:"info", terms:["logs","log bundle","diagnostic","collect logs","provide info","screenshot","trace"] },
+  { label:"Closure", kind:"warn", terms:["close","closing","final","wrap up","end case","resolve and close"] },
+  { label:"Third-party", kind:"info", terms:["google","meet","logitech","microsoft","teams","zoom","vendor","third party","outside scope"] },
+  { label:"RMA request", kind:"warn", terms:["rma","replace","replacement","swap","exchange","dispatch"] },
+  { label:"Monitor", kind:"good", terms:["monitor","stable","watch","observe","24–48","24-48","48 hours"] }
+];
 
-  chat.innerHTML += `<div class="msg user">${txt}</div>`;
+/* =========================
+   TEMPLATE SIGNALS (why)
+========================= */
+const templateSignals = {
+  "Waiting on Customer – Initial Follow-Up": ["no response","not responding","haven't heard","waiting","logs","diagnostic","provide","screenshot","info"],
+  "Re-engagement Confirmation": ["confirm","still need","check in","quiet","intent","continue","proceed"],
+  "Case Closed – No Response": ["close","closing","final","no reply","no response"],
+  "Third-Party Ownership": ["google","meet","logitech","microsoft","teams","zoom","third party","vendor","outside"],
+  "RMA Requires Troubleshooting": ["rma","replacement","replace","swap","dispatch","eligible","warranty"],
+  "Monitoring Confirmation": ["monitor","stable","observe","24","48","watch"]
+};
 
-  let response = "";
-  let matches = [];
+/* =========================
+   LIGHTWEIGHT “AI” MATCHING
+   (local fuzzy similarity)
+========================= */
+function norm(s){
+  return (s||"").toLowerCase()
+    .replace(/[^\w\s\-–]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
 
-  if(txt.includes("no response") || txt.includes("waiting")){
-    response = "Looks like we're waiting on the customer.";
-    matches.push(templates[0], templates[1]);
+// Dice coefficient on bigrams = typo tolerant without external libs
+function bigrams(str){
+  const s = ` ${norm(str)} `;
+  const out = [];
+  for(let i=0;i<s.length-1;i++){
+    out.push(s.slice(i,i+2));
   }
-  else if(txt.includes("close")){
-    response = "Seems like this can be closed cleanly.";
-    matches.push(templates[2]);
-  }
-  else if(txt.includes("google") || txt.includes("teams") || txt.includes("zoom")){
-    response = "This looks like a third-party platform issue.";
-    matches.push(templates[3]);
-  }
-  else if(txt.includes("replace") || txt.includes("rma")){
-    response = "We shouldn’t replace yet — troubleshooting first.";
-    matches.push(templates[4]);
-  }
-  else {
-    response = "Hmm… this looks like a follow-up situation.";
-    matches.push(templates[0]);
-  }
+  return out;
+}
+function dice(a,b){
+  const A = bigrams(a), B = bigrams(b);
+  if(!A.length || !B.length) return 0;
+  const map = new Map();
+  A.forEach(x=>map.set(x,(map.get(x)||0)+1));
+  let hits = 0;
+  B.forEach(x=>{
+    const c = map.get(x)||0;
+    if(c>0){ hits++; map.set(x,c-1); }
+  });
+  return (2*hits) / (A.length + B.length);
+}
 
-  let html = `<div class="msg ai"><strong>MVP:</strong><br>${response}<br><br>`;
+function detectIntents(text){
+  const t = norm(text);
+  const found = [];
+  for(const item of intentLexicon){
+    for(const term of item.terms){
+      if(t.includes(norm(term))){ found.push(item); break; }
+    }
+  }
+  // de-dupe by label
+  const m = new Map();
+  found.forEach(x=>m.set(x.label,x));
+  return [...m.values()];
+}
 
-  matches.forEach(t => {
-    html += `
-    <div class="template">
-      <strong>${t.title}</strong><br>
-      ${t.body}
-      <button class="copy-btn" onclick="copyText(\`${t.body}\`)">Copy</button>
-    </div>`;
+function confidencePct(sim){
+  // sim is 0..1
+  return Math.max(0, Math.min(100, Math.round(sim * 100)));
+}
+
+function scoreTemplate(t, ctx){
+  const ctxN = norm(ctx);
+  const sigs = templateSignals[t.title] || [];
+  const why = sigs.filter(k => ctxN.includes(norm(k)));
+  // similarity between ctx and title/when/body summary
+  const simTitle = dice(ctx, t.title);
+  const simWhen  = dice(ctx, t.when);
+  const simBody  = dice(ctx, t.body.slice(0,260));
+  // weighted similarity
+  let sim = (0.45*simTitle) + (0.25*simWhen) + (0.30*simBody);
+  // explicit keyword boost = feels more “AI”
+  sim += Math.min(0.18, why.length * 0.04);
+  sim = Math.min(1, sim);
+  return { sim, why };
+}
+
+/* =========================
+   UI: Chat + Suggestions
+========================= */
+const chatEl = document.getElementById("chat");
+const statusEl = document.getElementById("status");
+const intentEl = document.getElementById("intent");
+const suggEl = document.getElementById("suggestions");
+
+function addMsg(role, text){
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="who">${role === "user" ? "You" : "MVP"}</div>
+    <div class="text">${escapeHtml(text).replace(/\n/g,"<br>")}</div>
+  `;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function escapeHtml(s){
+  return (s||"")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function setIntentChips(intents){
+  intentEl.innerHTML = "";
+  if(!intents.length){
+    intentEl.innerHTML = `<span class="chip info">General</span>`;
+    return;
+  }
+  intents.forEach(i=>{
+    intentEl.innerHTML += `<span class="chip ${i.kind}">${escapeHtml(i.label)}</span>`;
+  });
+}
+
+function renderSuggestions(ctx){
+  const scored = templates.map(t=>{
+    const s = scoreTemplate(t, ctx);
+    return { ...t, sim:s.sim, conf:confidencePct(s.sim), why:s.why };
+  }).sort((a,b)=>b.sim-a.sim).slice(0,3);
+
+  suggEl.innerHTML = "";
+  scored.forEach((t, idx)=>{
+    const whyTags = t.why.length
+      ? t.why.slice(0,8).map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join("")
+      : `<span class="tag">Similarity match</span>`;
+
+    const safeBody = t.body.replace(/`/g,"");
+
+    const card = document.createElement("div");
+    card.className = "suggestCard";
+    card.innerHTML = `
+      <div class="sTitle">
+        <h3>${idx+1}. ${escapeHtml(t.title)}</h3>
+        <span class="tag">${escapeHtml(t.category)}</span>
+      </div>
+      <div class="meta">${escapeHtml(t.when)}</div>
+
+      <div class="meter"><div class="bar" style="width:${t.conf}%;"></div></div>
+      <div class="scoreline"><span>Confidence</span><b>${t.conf}%</b></div>
+
+      <div class="why">${whyTags}</div>
+      <div class="replyBox">${escapeHtml(t.body)}</div>
+
+      <div class="copyRow">
+        <button class="copyBtn" onclick="copyReply(\`${safeBody}\`, this)">Copy Reply</button>
+        <div class="copyState">Suggest‑only: you choose and paste into Zoho/Email.</div>
+      </div>
+    `;
+    suggEl.appendChild(card);
   });
 
-  html += "</div>";
-
-  chat.innerHTML += html;
+  return scored;
 }
 
-function copyText(text){
+function copyReply(text, btn){
   navigator.clipboard.writeText(text);
-  alert("Copied!");
+  const old = btn.textContent;
+  btn.textContent = "Copied ✓";
+  btn.style.background = "linear-gradient(180deg, #2ad06f, #0e9f4a)";
+  setTimeout(()=>{ btn.textContent = old; }, 1200);
 }
 
-</script>
+function mvpResponse(ctx, intents, top){
+  // Personality but professional: short, helpful, explains, never writes new text.
+  const intentNames = intents.map(i=>i.label);
+  const topTitle = top?.[0]?.title || "a follow-up template";
 
+  const lines = [];
+  lines.push(`Got it. Here’s what I’m seeing: ${intentNames.length ? intentNames.join(", ") : "General"}.\n`);
+  lines.push(`My top pick is **${topTitle}** because it matches your case context best.\n`);
+  lines.push(`I’ll only recommend templates — you stay in control of what gets sent.`);
+  return lines.join("\n");
+}
+
+function sendMessage(){
+  const box = document.getElementById("userInput");
+  const ctx = box.value.trim();
+  if(!ctx) return;
+
+  addMsg("user", ctx);
+
+  statusEl.textContent = "Analyzing…";
+  const intents = detectIntents(ctx);
+  setIntentChips(intents);
+
+  const top = renderSuggestions(ctx);
+  addMsg("mvp", mvpResponse(ctx, intents, top));
+
+  statusEl.textContent = "Suggested (top 3)";
+  box.value = "";
+}
+
+function loadDemo(){
+  document.getElementById("userInput").value =
+    "Customer stopped responding after we requested logs and a screenshot. Considering closure if they no longer need help.";
+  sendMessage();
+}
+
+/* init chat greeting */
+addMsg("mvp",
+`Hey 👋 I’m MVP — your support co‑pilot.
+
+Drop a case summary and I’ll recommend the best canned replies *and* explain why.
+No new customer text is generated — I only suggest from your approved library.`);
+</script>
 </body>
 </html>
+``
