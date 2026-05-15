@@ -1,3 +1,4 @@
+PSSC Canned Reply Assistant v1.0
 <!DOCTYPE html>
 
 <html lang="en">
@@ -147,6 +148,32 @@ Regards,
 Lenovo Smart Collaboration Support`
   }
 ];
+{
+  category:"Process",
+  title:"RMA Requires Troubleshooting",
+  when:"Customer is requesting replacement without validation.",
+  body:`Hello,
+
+To proceed with a replacement, we need to complete required troubleshooting steps to confirm eligibility under warranty.
+
+Once completed, we will review next steps with you.
+
+Regards,
+Lenovo Smart Collaboration Support`
+}
+{
+  category:"Follow Up",
+  title:"Monitoring Confirmation",
+  when:"System appears stable but needs observation.",
+  body:`Hello,
+
+At this time, the system appears to be functioning as expected.
+
+We recommend monitoring for the next 24–48 hours. If the issue returns, please let us know and we’ll continue troubleshooting.
+
+Regards,
+Lenovo Smart Collaboration Support`
+}
 
 // Signals for AI suggestions (SAFE + EXPLAINABLE)
 const signals = {
@@ -157,6 +184,7 @@ const signals = {
 };
 
 let activeCategory = "All";
+  
 
 // ---------------- CORE ----------------
 function copyText(btn,text){
