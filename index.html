@@ -94,6 +94,7 @@
       font-size: 0.85rem;
       margin-right: 6px;
       margin-top: 6px;
+      color: #e2e8f0;
     }
 
     .hint {
@@ -139,17 +140,74 @@
 
     <div class="hint">
       Paste case notes / escalation text. MVP will parse Ticket/Serial, summarize, warn on QA risks, and generate Top 3 copy/paste replies.
+      <br><span class="small">Learning is local-only (saved in your browser). Use + Copy / Helpful / Not Helpful to train rankings.</span>
     </div>
 
     <div style="margin-top:10px;">
       <input id="userInput" placeholder="Example: Case #22336 | Serial: PF4RWEMX | Customer not responding after logs request..." />
       <button onclick="sendMessage()">Analyze</button>
+      <button class="btnSecondary" onclick="resetLearning()">Reset Learning</button>
     </div>
 
     <div id="output"></div>
   </div>
 
 <script>
+/* =========================
+   📈 LIGHTWEIGHT LEARNING (LOCAL)
+   - Stores agent preferences in localStorage
+   - Boosts reply ranking based on usage + helpful votes
+   ========================= */
+
+const MVP_STATS_KEY = "mvp_template_stats_v1";
+
+function loadTemplateStats(){
+  try { return JSON.parse(localStorage.getItem(MVP_STATS_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveTemplateStats(stats){
+  localStorage.setItem(MVP_STATS_KEY, JSON.stringify(stats));
+}
+
+function ensureStat(stats, templateKey){
+  if(!stats[templateKey]){
+    stats[templateKey] = { used: 0, helpful: 0, notHelpful: 0 };
+  }
+}
+
+function recordTemplateUse(templateKey){
+  const stats = loadTemplateStats();
+  ensureStat(stats, templateKey);
+  stats[templateKey].used += 1;
+  saveTemplateStats(stats);
+}
+
+function recordTemplateFeedback(templateKey, isHelpful){
+  const stats = loadTemplateStats();
+  ensureStat(stats, templateKey);
+  if(isHelpful) stats[templateKey].helpful += 1;
+  else stats[templateKey].notHelpful += 1;
+  saveTemplateStats(stats);
+}
+
+function getTemplateBoost(templateKey){
+  const stats = loadTemplateStats();
+  if(!stats[templateKey]) return 0;
+
+  const { used, helpful, notHelpful } = stats[templateKey];
+  // Explainable scoring:
+  // - small boost for use
+  // - bigger boost for helpful
+  // - penalty for not helpful
+  return (used * 1.0) + (helpful * 4.0) - (notHelpful * 5.0);
+}
+
+function resetLearning(){
+  localStorage.removeItem(MVP_STATS_KEY);
+  alert("Learning reset (localStorage cleared).");
+}
+
 /* =========================
    🧠 MULTI-FIELD PARSER
    ========================= */
@@ -246,6 +304,7 @@ function generateCaseSummary(text){
 
   if(signals.rma){
     if(!summary.tags.includes("RMA Risk")) summary.tags.push("RMA Risk");
+    // Keep governance-safe: troubleshoot then escalate internally if needed
     summary.nextStep = "Complete troubleshooting and escalate internally for review if needed";
   }
 
@@ -365,11 +424,8 @@ function applyReplyGuardrails(reply, summary){
     { pattern: /\b(rma|swap)\b/ig, replaceWith: "service review" }
   ];
 
-  replacements.forEach(r => {
-    safe = safe.replace(r.pattern, r.replaceWith);
-  });
+  replacements.forEach(r => { safe = safe.replace(r.pattern, r.replaceWith); });
 
-  // If RMA risk detected, append a consistent “no promises” note
   if(summary.tags && summary.tags.includes("RMA Risk")){
     const guardrailNote =
 `\n\nNote: We can’t commit to a replacement in advance. If troubleshooting indicates additional service action may be needed, the request is reviewed and handled by the appropriate escalation/Customer Care team after required troubleshooting steps are completed.`;
@@ -382,53 +438,55 @@ function applyReplyGuardrails(reply, summary){
 }
 
 /* =========================
-   🥇 TOP 3 REPLY OPTIONS (rank + pick)
+   🥇 TOP 3 REPLY OPTIONS (rank + learn)
    ========================= */
 function generateTop3ReplyOptions(summary, parsed){
   const candidates = [];
 
-  // Helper to add unique candidates
-  function add(title, body, score){
-    candidates.push({ title, body, score });
+  function add(templateKey, title, body, baseScore){
+    const boost = getTemplateBoost(templateKey);
+    candidates.push({
+      templateKey,
+      title,
+      body,
+      score: baseScore + boost
+    });
   }
 
-  // Scenario-driven scoring
   const hasLogsMissing = (summary.blocker || "").toLowerCase().includes("log");
   const isWaiting = summary.status === "Waiting on Customer";
   const isClosure = summary.status === "Pending Closure";
   const isThirdParty = summary.tags.includes("Third-Party");
   const isRmaRisk = summary.tags.includes("RMA Risk");
 
-  // Primary templates
-  if(isWaiting) add("Follow-up (Waiting on Customer)", tplFollowUpWaiting(summary, parsed), 100);
-  if(isClosure) add("Closure Confirmation", tplClosureConfirm(summary, parsed), 100);
-  if(hasLogsMissing) add("Request Logs / Diagnostics", tplLogsRequest(summary, parsed), 95);
-  if(isThirdParty) add("Third-Party Boundary (Vendor Support)", tplThirdPartyBoundary(summary, parsed), 100);
-  if(isRmaRisk) add("Replacement Request (Set Expectations, No Promises)", tplRMAExpectations(summary, parsed), 100);
+  // Strong matches
+  if(isWaiting)     add("followup_waiting", "Follow-up (Waiting on Customer)", tplFollowUpWaiting(summary, parsed), 100);
+  if(isClosure)     add("closure_confirm",  "Closure Confirmation", tplClosureConfirm(summary, parsed), 100);
+  if(hasLogsMissing) add("logs_request",    "Request Logs / Diagnostics", tplLogsRequest(summary, parsed), 95);
+  if(isThirdParty)  add("thirdparty",      "Third-Party Boundary (Vendor Support)", tplThirdPartyBoundary(summary, parsed), 100);
+  if(isRmaRisk)     add("rma_expectations","Replacement Request (Set Expectations, No Promises)", tplRMAExpectations(summary, parsed), 100);
 
-  // Strong alternates
-  if(!hasLogsMissing) add("Request Logs / Diagnostics (Optional)", tplLogsRequest(summary, parsed), 60);
-  if(!isThirdParty) add("General Update (Troubleshooting in Progress)", tplGeneralUpdate(summary, parsed), 55);
-  if(!isWaiting) add("Follow-up (Check-in)", tplFollowUpWaiting(summary, parsed), 50);
-  if(!isClosure) add("Closure Confirmation (If Resolved)", tplClosureConfirm(summary, parsed), 35);
+  // General fallbacks
+  add("general_update", "General Update (Troubleshooting in Progress)", tplGeneralUpdate(summary, parsed), 55);
 
-  // Sort, de-dupe by title, take top 3
   candidates.sort((a,b) => b.score - a.score);
 
+  // De-dupe and take top 3
   const seen = new Set();
   const top = [];
   for(const c of candidates){
-    if(seen.has(c.title)) continue;
-    seen.add(c.title);
-    top.push(c);
+    if(seen.has(c.templateKey)) continue;
+    seen.add(c.templateKey);
+    top.push({
+      templateKey: c.templateKey,
+      title: c.title,
+      body: applyReplyGuardrails(c.body, summary),
+      score: c.score
+    });
     if(top.length === 3) break;
   }
 
-  // Apply guardrails to each body
-  return top.map((o) => ({
-    title: o.title,
-    body: applyReplyGuardrails(o.body, summary)
-  }));
+  return top;
 }
 
 /* =========================
@@ -437,7 +495,6 @@ function generateTop3ReplyOptions(summary, parsed){
 async function copyTextFromTextarea(textareaId){
   const el = document.getElementById(textareaId);
   if(!el) return;
-
   const text = el.value;
 
   try {
@@ -449,6 +506,19 @@ async function copyTextFromTextarea(textareaId){
     document.execCommand("copy");
     alert("Reply copied!");
   }
+}
+
+/* =========================
+   🧠 Learning UI actions
+   ========================= */
+async function useOption(templateKey, textareaId){
+  recordTemplateUse(templateKey);
+  await copyTextFromTextarea(textareaId);
+}
+
+function feedbackOption(templateKey, isHelpful){
+  recordTemplateFeedback(templateKey, isHelpful);
+  alert(isHelpful ? "Saved: Helpful 👍" : "Saved: Not helpful 👎");
 }
 
 /* =========================
@@ -502,14 +572,23 @@ function sendMessage(){
   const repliesCard = `
     <div class="card">
       <h3>📧 Suggested Customer Replies (Top 3)</h3>
-      <div class="meta small">Choose the best match and copy/paste. Guardrails are applied automatically.</div>
+      <div class="meta small">
+        MVP learns which templates agents use and rate helpful. Higher “Score” = more likely to rank next time.
+      </div>
 
       ${replyOptions.map((opt, idx) => `
         <div class="optWrap">
-          <div class="optTitle"><b>Option ${idx+1}:</b> ${opt.title}</div>
+          <div class="optTitle">
+            <b>Option ${idx+1}:</b> ${opt.title}
+            <span class="pill">Score: ${Math.round(opt.score)}</span>
+          </div>
+
           <textarea id="replyOpt${idx}">${opt.body}</textarea>
+
           <div class="btnRow">
-            <button onclick="copyTextFromTextarea('replyOpt${idx}')">Copy Option ${idx+1}</button>
+            <button onclick="useOption('${opt.templateKey}', 'replyOpt${idx}')">Use + Copy</button>
+            <button class="btnSecondary" onclick="feedbackOption('${opt.templateKey}', true)">Helpful 👍</button>
+            <button class="btnSecondary" onclick="feedbackOption('${opt.templateKey}', false)">Not helpful 👎</button>
           </div>
         </div>
       `).join("")}
@@ -522,3 +601,4 @@ function sendMessage(){
 
 </body>
 </html>
+``
