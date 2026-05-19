@@ -1,179 +1,236 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>MVP – Case Intelligence Engine</title>
+<title>MVP – Frostbyte Assistant</title>
 
 <style>
-body {font-family: Arial; background:#0f172a; color:white; padding:20px;}
-.chat-box{max-width:950px;margin:auto;}
-input{width:75%;padding:10px;border-radius:6px;border:none;}
-button{padding:10px;border:none;border-radius:6px;background:#38bdf8;font-weight:bold;}
-.card{background:#1e293b;padding:15px;margin-top:15px;border-left:4px solid #38bdf8;border-radius:10px;}
-textarea{width:100%;height:140px;margin-top:10px;border-radius:8px;padding:10px;background:#e2e8f0;color:black;}
-.meta{margin-top:6px;}
+body {
+  font-family: Arial;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #e2e8f0;
+  padding: 20px;
+  animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+  from {opacity:0; transform: translateY(10px);}
+  to {opacity:1;}
+}
+
+.chat-box {
+  max-width: 950px;
+  margin:auto;
+}
+
+input {
+  width:75%;
+  padding:12px;
+  border-radius:8px;
+  border:none;
+  font-size:14px;
+}
+
+button {
+  padding:10px 14px;
+  border:none;
+  border-radius:8px;
+  background:#38bdf8;
+  color:#0f172a;
+  font-weight:bold;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+button:hover {
+  background:#0ea5e9;
+  transform: scale(1.05);
+}
+
+.card {
+  background:#1e293b;
+  padding:18px;
+  margin-top:15px;
+  border-radius:12px;
+  border-left:4px solid #38bdf8;
+  animation: fadeIn 0.5s ease-in;
+  transition:0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow:0px 8px 20px rgba(56,189,248,0.2);
+}
+
+textarea {
+  width:100%;
+  height:120px;
+  margin-top:10px;
+  border-radius:8px;
+  padding:10px;
+  background:#f1f5f9;
+  color:#0f172a;
+}
+
+.meta {
+  margin-top:6px;
+}
+
+h2 {
+  color:#38bdf8;
+}
+
 </style>
 </head>
 
 <body>
 
 <div class="chat-box">
-<h2>🧠 MVP – Case Intelligence Engine</h2>
+<h2>❄️ MVP Frostbyte Assistant</h2>
 
-<input id="userInput" placeholder="Paste case notes..." />
-<button onclick="runMVP()">Analyze</button>
+<input id="input" placeholder="Paste case details here..." />
+<button onclick="run()">Analyze</button>
 
-<div id="output"></div>
+<div id="out"></div>
 </div>
 
 <script>
 
-// =========================
-// 🧠 PARSER (Email + Ticket + Serial)
-// =========================
-function parseInput(text){
-  return {
-    ticket: (text.match(/(case|ticket)[#: ]*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
-    serial: (text.match(/(serial|sn)[#: ]*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
-    email: (text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)||[])[0]||"N/A",
-    notes: text
-  }
+// PARSER
+function parse(t){
+ return {
+  ticket:(t.match(/(case|ticket)[#:]?\s*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
+  serial:(t.match(/(serial|sn)[#:]?\s*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
+  email:(t.match(/[^\s]+@[^\s]+/i)||[])[0]||"N/A",
+  text:t.toLowerCase()
+ }
 }
 
-// =========================
-// 🧠 SUMMARY
-// =========================
-function analyze(text){
-  const t = text.toLowerCase();
-  return {
-    waiting: t.includes("not responding"),
-    logs: t.includes("log"),
-    hardware: t.includes("power")||t.includes("boot"),
-    third: t.includes("teams")||t.includes("zoom"),
-    rma: t.includes("replace")
-  }
+// ANALYSIS
+function analyze(t){
+ return {
+  logs:t.includes("log"),
+  wait:t.includes("not responding"),
+  hw:t.includes("power")||t.includes("boot"),
+  third:t.includes("teams")||t.includes("zoom"),
+  rma:t.includes("replace")
+ }
 }
 
-// =========================
-// 📋 CUSTOMER CHECKLIST
-// =========================
-function checklist(p,s){
- let list = [
+// CX FRIENDLY REPLIES ✅
+function replies(s){
+
+ return [
+
+`Hello,
+
+Thank you for reaching out — I completely understand how this can be frustrating, and I appreciate your patience while we work through it.
+
+To help us move forward, could you please share the requested logs or any additional details when you have a moment? Once we have that, we’ll review everything and continue troubleshooting right away.
+
+Looking forward to your update,
+Lenovo Support`,
+
+`Hello,
+
+Just checking in on your case — I wanted to follow up and see if you had a chance to review our previous request.
+
+Whenever you're ready, please share the requested information so we can continue working toward a resolution. If we don’t hear back, we may temporarily close the case, but we’re always here to pick things back up when you're available.
+
+Thank you again,
+Lenovo Support`,
+
+`Hello,
+
+I understand your concern regarding the issue, and we’re here to help get this resolved as quickly as possible.
+
+At this stage, we’ll continue working through troubleshooting steps and reviewing the findings. If necessary, we can escalate internally after we’ve gathered the required information.
+
+Please share any additional details when available — we’ll take it from there.
+
+Thank you,
+Lenovo Support`
+
+ ];
+}
+
+// CHECKLIST
+function checklist(s){
+ let c=[
  "✔ Confirm serial number",
  "✔ Confirm customer email"
  ];
-
  if(s.logs){
-  list.push("🟡 Request logs");
-  list.push("🟡 Ask for timestamp");
+  c.push("🟡 Provide logs");
+  c.push("🟡 Provide timestamp of issue");
  }
-
- if(s.hardware){
-  list.push("🟡 Ask for photos/video");
-  list.push("🟡 Confirm power behavior");
+ if(s.hw){
+  c.push("🟡 Provide photo/video of issue");
  }
-
- if(s.third){
-  list.push("🟡 Confirm platform (Teams/Zoom)");
- }
-
- return list;
+ return c;
 }
 
-// =========================
-// 🧭 GUIDED ACTIONS
-// =========================
+// GUIDANCE
 function actions(s){
  let a=[];
+ if(s.logs)a.push("Request logs and confirm access");
+ if(s.hw)a.push("Check power, cables, reboot");
+ if(s.third)a.push("Isolate app vs system");
+ if(s.wait)a.push("Send follow-up + closure expectation");
+ if(s.rma)a.push("DO NOT promise replacement");
 
- if(s.logs) a.push("Request logs and confirm access");
- if(s.hardware) a.push("Check power, cables, reboot");
- if(s.third) a.push("Isolate app vs system issue");
- if(s.waiting) a.push("Send follow-up and set closure expectation");
- if(s.rma) a.push("DO NOT promise replacement");
-
- if(a.length===0){
-  a.push("Collect more info and troubleshoot step by step");
- }
+ if(a.length===0) a.push("Continue structured troubleshooting");
 
  return a;
 }
 
-// =========================
-// 📧 REPLIES
-// =========================
-function replies(s){
- return [
- "Hello,\n\nWe are reviewing your issue and will continue troubleshooting. Please provide logs if available.\n\nThank you.",
- "Hello,\n\nFollowing up on your case. Please provide the requested details so we can proceed.\n\nThank you.",
- "Hello,\n\nWe recommend continuing troubleshooting steps. We can escalate internally if needed after review.\n\nThank you."
- ];
-}
-
-// =========================
-// 📝 CASE NOTE GENERATOR
-// =========================
-function caseNote(p,s){
- return `
-=== PSSC CASE NOTE ===
+// CASE NOTES
+function notes(p,s){
+ return `=== CASE NOTE ===
 
 Case: ${p.ticket}
 Serial: ${p.serial}
 Email: ${p.email}
 
-Issue:
-${s.hardware?"Hardware issue":s.third?"Third-party issue":"General issue"}
+Issue: ${s.hw?"Hardware":"General"}
 
-Status:
-${s.waiting?"Waiting on Customer":"Active"}
-
-Actions Taken:
-• Initial assessment completed
-• Awaiting logs or further info
+Actions:
+• Initial review complete
+• Awaiting more info
 
 Next Step:
-Continue troubleshooting / request info
-
-=====================
+Continue troubleshooting
 `;
 }
 
-// =========================
-// 🚀 MAIN
-// =========================
-function runMVP(){
+// MAIN
+function run(){
 
- const input = document.getElementById("userInput").value;
+ let raw=document.getElementById("input").value;
+ let p=parse(raw);
+ let s=analyze(p.text);
 
- const p = parseInput(input);
- const s = analyze(input);
-
- const cl = checklist(p,s);
- const ac = actions(s);
- const rp = replies(s);
- const note = caseNote(p,s);
-
- document.getElementById("output").innerHTML = `
+ document.getElementById("out").innerHTML=`
 
 <div class="card">
 <h3>📄 Case Overview</h3>
-<div class="meta">Ticket: ${p.ticket}</div>
+<div class="meta">Case: ${p.ticket}</div>
 <div class="meta">Serial: ${p.serial}</div>
 <div class="meta">Email: ${p.email}</div>
 </div>
 
 <div class="card">
 <h3>📋 What I Need From Customer</h3>
-${cl.map(x=>`<div class="meta">${x}</div>`).join("")}
+${checklist(s).map(x=>`<div>${x}</div>`).join("")}
 </div>
 
 <div class="card">
 <h3>🧭 Guided Actions</h3>
-${ac.map(x=>`<div class="meta">• ${x}</div>`).join("")}
+${actions(s).map(x=>`<div>• ${x}</div>`).join("")}
 </div>
 
 <div class="card">
 <h3>📧 Suggested Replies</h3>
-${rp.map((r,i)=>`
+${replies(s).map(r=>`
 <textarea>${r}</textarea>
 <button onclick="navigator.clipboard.writeText(\`${r}\`)">Copy</button>
 `).join("")}
@@ -181,12 +238,10 @@ ${rp.map((r,i)=>`
 
 <div class="card">
 <h3>📝 Case Notes</h3>
-<textarea>${note}</textarea>
-<button onclick="navigator.clipboard.writeText(\`${note}\`)">Copy Notes</button>
+<textarea>${notes(p,s)}</textarea>
+<button onclick="navigator.clipboard.writeText(\`${notes(p,s)}\`)">Copy Notes</button>
 </div>
-
-`;
-
+`
 }
 
 </script>
