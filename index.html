@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>MVP – Minimum Viable Pal</title>
+
   <style>
     body {
       font-family: Arial;
@@ -11,13 +12,12 @@
     }
 
     .chat-box {
-      width: 100%;
-      max-width: 700px;
+      max-width: 750px;
       margin: auto;
     }
 
     input {
-      width: 80%;
+      width: 75%;
       padding: 10px;
       border-radius: 5px;
       border: none;
@@ -25,11 +25,10 @@
 
     button {
       padding: 10px;
-      border: none;
       border-radius: 5px;
-      cursor: pointer;
+      border: none;
       background: #38bdf8;
-      color: black;
+      cursor: pointer;
     }
 
     .suggestCard {
@@ -43,15 +42,20 @@
     .meta {
       margin-top: 5px;
     }
+
+    hr {
+      border: 1px solid #334155;
+      margin: 10px 0;
+    }
   </style>
 </head>
 
 <body>
 
 <div class="chat-box">
-  <h2>🧠 MVP (Minimum Viable Pal)</h2>
+  <h2>🧠 MVP – Case Intelligence Engine</h2>
 
-  <input id="userInput" placeholder="Paste case notes here..." />
+  <input id="userInput" placeholder="Paste case, escalation, or notes here..." />
   <button onclick="sendMessage()">Analyze</button>
 
   <div id="suggestions"></div>
@@ -60,7 +64,43 @@
 <script>
 
 // =========================
-// 🧠 CASE SUMMARY ENGINE v1.4 (LIVE TOOL BASE)
+// 🧠 MULTI-FIELD PARSER
+// =========================
+
+function parseCaseInput(text){
+
+  const parsed = {
+    ticketId: "Not found",
+    serial: "Not found",
+    notes: text
+  };
+
+  // Ticket / Case
+  const ticketMatch = text.match(/(ticket|case)[#: ]*\s*([a-zA-Z0-9]+)/i);
+  if(ticketMatch){
+    parsed.ticketId = ticketMatch[2];
+  }
+
+  // Serial Number
+  const serialMatch = text.match(/(serial|sn)[#: ]*\s*([a-zA-Z0-9]+)/i);
+  if(serialMatch){
+    parsed.serial = serialMatch[2];
+  }
+
+  // Clean notes if structured input found
+  if(parsed.ticketId !== "Not found" || parsed.serial !== "Not found"){
+    parsed.notes = text
+      .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
+      .replace(/(serial|sn)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
+      .trim();
+  }
+
+  return parsed;
+}
+
+
+// =========================
+// 🧠 CASE SUMMARY ENGINE
 // =========================
 
 function generateCaseSummary(text){
@@ -81,12 +121,11 @@ function generateCaseSummary(text){
     logsMissing: input.includes("log") || input.includes("diagnostic"),
     closureIntent: input.includes("close") || input.includes("closure"),
     thirdParty: input.includes("teams") || input.includes("zoom") || input.includes("google"),
-    hardware: input.includes("power") || input.includes("boot") || input.includes("hardware"),
+    hardware: input.includes("power") || input.includes("boot") || input.includes("unresponsive"),
     rma: input.includes("replace") || input.includes("rma")
   };
 
-  // ISSUE
-
+  // Issue detection
   if(signals.thirdParty){
     summary.issue = "Third-party platform related issue";
     summary.tags.push("Third-Party");
@@ -103,8 +142,7 @@ function generateCaseSummary(text){
     summary.issue = "General support investigation";
   }
 
-  // STATUS
-
+  // Status
   if(signals.noResponse){
     summary.status = "Waiting on Customer";
     summary.customerState = "Unresponsive";
@@ -114,8 +152,7 @@ function generateCaseSummary(text){
     summary.status = "Pending Closure";
   }
 
-  // BLOCKER
-
+  // Blocker
   if(signals.logsMissing){
     summary.blocker = "Missing logs or diagnostic data";
   }
@@ -128,8 +165,7 @@ function generateCaseSummary(text){
     summary.blocker = "Dependency on external platform/vendor";
   }
 
-  // NEXT STEP
-
+  // Next Step
   if(summary.status === "Waiting on Customer"){
     summary.nextStep = "Send follow-up or closure warning";
   }
@@ -149,6 +185,7 @@ function generateCaseSummary(text){
 
   return summary;
 }
+
 
 // =========================
 // 🧠 NEXT BEST ACTION ENGINE
@@ -177,22 +214,37 @@ function getNextBestAction(summary){
   return action;
 }
 
+
 // =========================
 // 🧠 MAIN EXECUTION
 // =========================
 
 function sendMessage(){
 
-  const ctx = document.getElementById("userInput").value;
+  const input = document.getElementById("userInput").value;
+  if(!input) return;
 
-  if(!ctx) return;
+  // Step 1 — Parse fields
+  const parsed = parseCaseInput(input);
 
-  const summary = generateCaseSummary(ctx);
+  // Step 2 — Analyze notes only
+  const summary = generateCaseSummary(parsed.notes);
+
+  // Step 3 — Get action
   const nextAction = getNextBestAction(summary);
 
+  // Step 4 — Render UI
   const summaryHTML = `
     <div class="suggestCard">
-      <h3>📄 Case Summary</h3>
+
+      <h3>📄 Case Overview</h3>
+
+      <div class="meta"><b>Ticket ID:</b> ${parsed.ticketId}</div>
+      <div class="meta"><b>Serial Number:</b> ${parsed.serial}</div>
+
+      <hr>
+
+      <h3>🧠 Case Analysis</h3>
 
       <div class="meta"><b>Issue:</b> ${summary.issue}</div>
       <div class="meta"><b>Status:</b> ${summary.status}</div>
@@ -202,6 +254,7 @@ function sendMessage(){
       <div class="meta"><b>Recommended Action:</b> ${nextAction}</div>
 
       <div class="meta"><b>Tags:</b> ${summary.tags.join(", ")}</div>
+
     </div>
   `;
 
