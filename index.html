@@ -1,67 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>MVP – Frostbyte Assistant</title>
+<title>❄️ MVP Frostbyte Assistant</title>
 
 <style>
 body {
   font-family: Arial;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
-  color: #e2e8f0;
-  padding: 20px;
-  animation: fadeIn 1s ease-in;
+  background: linear-gradient(135deg,#0f172a,#1e293b);
+  color:#e2e8f0;
+  padding:20px;
+  animation:fadeIn 1s ease-in;
 }
 
-@keyframes fadeIn {
-  from {opacity:0; transform: translateY(10px);}
-  to {opacity:1;}
+@keyframes fadeIn{
+  from{opacity:0; transform:translateY(10px);}
+  to{opacity:1;}
 }
 
-.chat-box {
-  max-width: 950px;
-  margin:auto;
-}
+.chat-box{max-width:950px;margin:auto;}
 
-input {
+input{
   width:75%;
   padding:12px;
   border-radius:8px;
   border:none;
-  font-size:14px;
 }
 
-button {
-  padding:10px 14px;
-  border:none;
+button{
+  padding:10px;
   border-radius:8px;
+  border:none;
   background:#38bdf8;
-  color:#0f172a;
   font-weight:bold;
   cursor:pointer;
-  transition:0.2s;
+  transition:.2s;
 }
 
-button:hover {
+button:hover{
   background:#0ea5e9;
-  transform: scale(1.05);
+  transform:scale(1.05);
 }
 
-.card {
+.card{
   background:#1e293b;
-  padding:18px;
+  padding:15px;
   margin-top:15px;
-  border-radius:12px;
   border-left:4px solid #38bdf8;
-  animation: fadeIn 0.5s ease-in;
-  transition:0.2s;
+  border-radius:10px;
+  animation:fadeIn .4s ease-in;
 }
 
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow:0px 8px 20px rgba(56,189,248,0.2);
+.card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 15px rgba(56,189,248,.2);
 }
 
-textarea {
+textarea{
   width:100%;
   height:120px;
   margin-top:10px;
@@ -70,42 +64,54 @@ textarea {
   background:#f1f5f9;
   color:#0f172a;
 }
-
-.meta {
-  margin-top:6px;
-}
-
-h2 {
-  color:#38bdf8;
-}
-
 </style>
+
 </head>
 
 <body>
 
 <div class="chat-box">
-<h2>❄️ MVP Frostbyte Assistant</h2>
+<h2>❄️ Frostbyte Assistant</h2>
 
-<input id="input" placeholder="Paste case details here..." />
+<input id="input" placeholder="Paste case details..." />
 <button onclick="run()">Analyze</button>
 
-<div id="out"></div>
+<div id="output"></div>
 </div>
 
 <script>
 
+let leadMode = false;
+
+// ✅ SHIFT + D toggles Lead Mode
+document.addEventListener("keydown", function(e){
+
+  const active = document.activeElement;
+  const typing = active.tagName==="INPUT" || active.tagName==="TEXTAREA";
+
+  if(!typing && e.shiftKey && (e.key==="D"||e.key==="d")){
+    e.preventDefault();
+    leadMode = !leadMode;
+    alert("Lead Mode: " + (leadMode?"ON":"OFF"));
+  }
+
+});
+
+// =========================
 // PARSER
+// =========================
 function parse(t){
  return {
-  ticket:(t.match(/(case|ticket)[#:]?\s*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
-  serial:(t.match(/(serial|sn)[#:]?\s*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
+  ticket:(t.match(/(case|ticket)[#: ]*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
+  serial:(t.match(/(serial|sn)[#: ]*([a-zA-Z0-9]+)/i)||[])[2]||"N/A",
   email:(t.match(/[^\s]+@[^\s]+/i)||[])[0]||"N/A",
   text:t.toLowerCase()
  }
 }
 
+// =========================
 // ANALYSIS
+// =========================
 function analyze(t){
  return {
   logs:t.includes("log"),
@@ -116,63 +122,50 @@ function analyze(t){
  }
 }
 
-// CX FRIENDLY REPLIES ✅
-function replies(s){
-
- return [
-
-`Hello,
-
-Thank you for reaching out — I completely understand how this can be frustrating, and I appreciate your patience while we work through it.
-
-To help us move forward, could you please share the requested logs or any additional details when you have a moment? Once we have that, we’ll review everything and continue troubleshooting right away.
-
-Looking forward to your update,
-Lenovo Support`,
-
-`Hello,
-
-Just checking in on your case — I wanted to follow up and see if you had a chance to review our previous request.
-
-Whenever you're ready, please share the requested information so we can continue working toward a resolution. If we don’t hear back, we may temporarily close the case, but we’re always here to pick things back up when you're available.
-
-Thank you again,
-Lenovo Support`,
-
-`Hello,
-
-I understand your concern regarding the issue, and we’re here to help get this resolved as quickly as possible.
-
-At this stage, we’ll continue working through troubleshooting steps and reviewing the findings. If necessary, we can escalate internally after we’ve gathered the required information.
-
-Please share any additional details when available — we’ll take it from there.
-
-Thank you,
-Lenovo Support`
-
- ];
+// =========================
+// LEARNING SYSTEM
+// =========================
+function getScore(key){
+ let data=JSON.parse(localStorage.getItem("mvp")||"{}");
+ if(!data[key]) return 0;
+ return data[key].used + (data[key].good*3) - data[key].bad*2;
 }
 
+function update(key,type){
+ let data=JSON.parse(localStorage.getItem("mvp")||"{}");
+ if(!data[key]) data[key]={used:0,good:0,bad:0};
+ if(type==="use") data[key].used++;
+ if(type==="good") data[key].good++;
+ if(type==="bad") data[key].bad++;
+ localStorage.setItem("mvp",JSON.stringify(data));
+}
+
+// =========================
 // CHECKLIST
+// =========================
 function checklist(s){
- let c=[
- "✔ Confirm serial number",
- "✔ Confirm customer email"
- ];
+ let c=["✔ Confirm serial number","✔ Confirm customer email"];
+
  if(s.logs){
   c.push("🟡 Provide logs");
-  c.push("🟡 Provide timestamp of issue");
+  c.push("🟡 Provide timestamp");
  }
  if(s.hw){
-  c.push("🟡 Provide photo/video of issue");
+  c.push("🟡 Provide photo/video");
  }
+ if(s.third){
+  c.push("🟡 Confirm platform");
+ }
+
  return c;
 }
 
+// =========================
 // GUIDANCE
+// =========================
 function actions(s){
  let a=[];
- if(s.logs)a.push("Request logs and confirm access");
+ if(s.logs)a.push("Request logs & confirm access");
  if(s.hw)a.push("Check power, cables, reboot");
  if(s.third)a.push("Isolate app vs system");
  if(s.wait)a.push("Send follow-up + closure expectation");
@@ -183,9 +176,54 @@ function actions(s){
  return a;
 }
 
+// =========================
+// CX FRIENDLY REPLIES
+// =========================
+function replies(s){
+ return [
+ {
+   key:"r1",
+   text:`Hello,
+
+Thank you for reaching out — I truly understand how frustrating this issue can be.
+
+To help us move forward, could you please share the requested logs or any additional details when you have a moment? Once we receive that, we’ll continue troubleshooting right away.
+
+Appreciate your time,
+Lenovo Support`
+ },
+ {
+   key:"r2",
+   text:`Hello,
+
+I just wanted to follow up on your case and check if you had a chance to review our previous request.
+
+Whenever you're ready, please send over the requested information so we can continue working toward a resolution.
+
+Thank you again,
+Lenovo Support`
+ },
+ {
+   key:"r3",
+   text:`Hello,
+
+I understand your concern, and we’re here to help resolve this as quickly as possible.
+
+We’ll continue troubleshooting and reviewing the findings, and if required, we can escalate internally after the necessary steps are completed.
+
+Please share any additional details when available.
+
+Thank you,
+Lenovo Support`
+ }
+ ];
+}
+
+// =========================
 // CASE NOTES
-function notes(p,s){
- return `=== CASE NOTE ===
+// =========================
+function caseNote(p,s){
+ return `=== PSSC CASE NOTE ===
 
 Case: ${p.ticket}
 Serial: ${p.serial}
@@ -193,29 +231,38 @@ Email: ${p.email}
 
 Issue: ${s.hw?"Hardware":"General"}
 
+Status: ${s.wait?"Waiting on Customer":"Active"}
+
 Actions:
-• Initial review complete
-• Awaiting more info
+• Initial assessment complete
+• Awaiting further data (logs/info)
 
 Next Step:
-Continue troubleshooting
+Continue troubleshooting or collect missing data
+
+============================
 `;
 }
 
+// =========================
 // MAIN
+// =========================
 function run(){
 
  let raw=document.getElementById("input").value;
  let p=parse(raw);
  let s=analyze(p.text);
 
- document.getElementById("out").innerHTML=`
+ let rp=replies(s)
+   .sort((a,b)=>getScore(b.key)-getScore(a.key));
+
+ document.getElementById("output").innerHTML=`
 
 <div class="card">
 <h3>📄 Case Overview</h3>
-<div class="meta">Case: ${p.ticket}</div>
-<div class="meta">Serial: ${p.serial}</div>
-<div class="meta">Email: ${p.email}</div>
+<div>Case: ${p.ticket}</div>
+<div>Serial: ${p.serial}</div>
+<div>Email: ${p.email}</div>
 </div>
 
 <div class="card">
@@ -230,18 +277,24 @@ ${actions(s).map(x=>`<div>• ${x}</div>`).join("")}
 
 <div class="card">
 <h3>📧 Suggested Replies</h3>
-${replies(s).map(r=>`
-<textarea>${r}</textarea>
-<button onclick="navigator.clipboard.writeText(\`${r}\`)">Copy</button>
+${rp.map(r=>`
+<textarea>${r.text}</textarea>
+<button onclick="navigator.clipboard.writeText(\`${r.text}\`); update('${r.key}','use')">Copy</button>
+<button onclick="update('${r.key}','good')">👍</button>
+<button onclick="update('${r.key}','bad')">👎</button>
 `).join("")}
 </div>
 
 <div class="card">
 <h3>📝 Case Notes</h3>
-<textarea>${notes(p,s)}</textarea>
-<button onclick="navigator.clipboard.writeText(\`${notes(p,s)}\`)">Copy Notes</button>
+<textarea id="note">${caseNote(p,s)}</textarea>
+<button onclick="navigator.clipboard.writeText(document.getElementById('note').value)">Copy Notes</button>
 </div>
-`
+
+${leadMode ? `<div class="card"><h3>🔒 Lead Mode</h3><div>Debug + scoring active</div></div>`:""}
+
+`;
+
 }
 
 </script>
