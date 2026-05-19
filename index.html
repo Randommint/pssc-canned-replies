@@ -12,7 +12,7 @@
     }
 
     .chat-box {
-      max-width: 820px;
+      max-width: 900px;
       margin: auto;
     }
 
@@ -62,14 +62,15 @@
 
     textarea {
       width: 100%;
-      height: 160px;
-      margin-top: 10px;
+      height: 140px;
+      margin-top: 8px;
       border-radius: 8px;
       padding: 10px;
       border: none;
       resize: vertical;
       font-family: Arial, sans-serif;
       font-size: 0.98rem;
+      color: #0b1220;
     }
 
     hr {
@@ -100,6 +101,35 @@
       font-size: 0.9rem;
       color: #cbd5e1;
     }
+
+    .optTitle {
+      margin-top: 0;
+      margin-bottom: 6px;
+      font-size: 1.02rem;
+    }
+
+    .optWrap {
+      background: #0b1220;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .optWrap textarea {
+      background: #e2e8f0;
+    }
+
+    .btnRow {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .btnSecondary {
+      background: #94a3b8;
+    }
   </style>
 </head>
 
@@ -108,7 +138,7 @@
     <h2>🧠 MVP – Case Intelligence Engine</h2>
 
     <div class="hint">
-      Paste case notes / escalation text. MVP will parse Ticket/Serial, summarize, warn on QA risks, and generate a copy/paste reply.
+      Paste case notes / escalation text. MVP will parse Ticket/Serial, summarize, warn on QA risks, and generate Top 3 copy/paste replies.
     </div>
 
     <div style="margin-top:10px;">
@@ -130,15 +160,12 @@ function parseCaseInput(text){
     notes: text
   };
 
-  // Ticket / Case patterns
   const ticketMatch = text.match(/(ticket|case)[#: ]*\s*([a-zA-Z0-9-]+)/i);
   if(ticketMatch) parsed.ticketId = ticketMatch[2];
 
-  // Serial patterns
   const serialMatch = text.match(/(serial|sn)[#: ]*\s*([a-zA-Z0-9]+)/i);
   if(serialMatch) parsed.serial = serialMatch[2];
 
-  // Strip structured headers if present
   if(parsed.ticketId !== "Not found" || parsed.serial !== "Not found"){
     parsed.notes = text
       .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9-]+/ig, "")
@@ -150,7 +177,7 @@ function parseCaseInput(text){
 }
 
 /* =========================
-   🧠 CASE SUMMARY ENGINE (live-ready base)
+   🧠 CASE SUMMARY ENGINE
    ========================= */
 function generateCaseSummary(text){
   const input = (text || "").toLowerCase();
@@ -173,7 +200,6 @@ function generateCaseSummary(text){
     rma: input.includes("replace") || input.includes("replacement") || input.includes("rma") || input.includes("swap")
   };
 
-  // Issue detection (priority-ish)
   if(signals.thirdParty){
     summary.issue = "Third-party platform related issue";
     summary.tags.push("Third-Party");
@@ -185,39 +211,41 @@ function generateCaseSummary(text){
     summary.tags.push("Customer Delay");
   }
 
-  // Status / customer state
   if(signals.noResponse){
     summary.status = "Waiting on Customer";
     summary.customerState = "Unresponsive";
   }
+
   if(signals.closureIntent){
     summary.status = "Pending Closure";
   }
 
-  // Blocker
   if(signals.logsMissing){
     summary.blocker = "Missing logs or diagnostic data";
   }
+
   if(signals.noResponse){
     summary.blocker = "No customer response";
   }
+
   if(signals.thirdParty){
     summary.blocker = "Dependency on external platform/vendor";
   }
 
-  // Next step
   if(summary.status === "Waiting on Customer"){
     summary.nextStep = "Send follow-up or closure warning";
   }
+
   if(summary.status === "Pending Closure"){
     summary.nextStep = "Confirm closure with customer";
   }
+
   if(signals.thirdParty){
     summary.nextStep = "Validate scope and direct customer to vendor support if needed";
   }
+
   if(signals.rma){
     if(!summary.tags.includes("RMA Risk")) summary.tags.push("RMA Risk");
-    // Keep it governance-safe: troubleshoot and escalate internally, do NOT promise replacement
     summary.nextStep = "Complete troubleshooting and escalate internally for review if needed";
   }
 
@@ -254,34 +282,28 @@ function getNextBestAction(summary){
    ========================= */
 function getQAWarnings(summary, parsed){
   let warnings = [];
-  let severity = "yellow"; // default
+  let severity = "yellow";
 
-  // Missing fields
   if(parsed.ticketId === "Not found") warnings.push("⚠️ Missing Ticket/Case ID");
   if(parsed.serial === "Not found") warnings.push("⚠️ Missing Serial Number");
 
-  // Missing logs / incomplete troubleshooting
   if((summary.blocker || "").toLowerCase().includes("log")){
     warnings.push("⚠️ Logs not collected – troubleshooting may be incomplete");
   }
 
-  // Follow-up cadence risk
   if(summary.status === "Waiting on Customer"){
     warnings.push("⚠️ Follow-up cadence risk – ensure documented follow-ups before closure");
   }
 
-  // Closure risk
   if(summary.status === "Pending Closure" && summary.customerState === "Unresponsive"){
     warnings.push("⚠️ Closure risk – confirm customer intent / final attempt before closing");
   }
 
-  // 🚫 RMA governance
   if(summary.tags.includes("RMA Risk")){
     warnings.push("🚫 Do NOT promise replacement – RMA decisions are handled by escalation/Customer Care teams");
     severity = "red";
   }
 
-  // Third-party boundary
   if(summary.tags.includes("Third-Party")){
     warnings.push("⚠️ Third-party boundary – confirm scope; Lenovo cannot coordinate directly with vendors on customer’s behalf");
   }
@@ -290,69 +312,123 @@ function getQAWarnings(summary, parsed){
 }
 
 /* =========================
-   📧 CANNED REPLY ENGINE (customer-friendly + unified)
+   📧 REPLY TEMPLATES (unified + customer friendly)
    ========================= */
-function generateReply(summary, parsed){
+function replyHeaderBlock(parsed){
   const caseLine = parsed.ticketId !== "Not found" ? `Case/Ticket: ${parsed.ticketId}\n` : "";
   const serialLine = parsed.serial !== "Not found" ? `Serial: ${parsed.serial}\n` : "";
-  const headerBlock = (caseLine || serialLine) ? `${caseLine}${serialLine}\n` : "";
+  return (caseLine || serialLine) ? `${caseLine}${serialLine}\n` : "";
+}
 
-  // Waiting on customer
-  if(summary.status === "Waiting on Customer"){
-    return `Hello,\n\n${headerBlock}I hope you're doing well. I’m following up on your case—at this time we’re still waiting on the requested information so we can continue troubleshooting.\n\nWhen you have a moment, please share the requested details (and logs if applicable). Once received, we’ll proceed right away.\n\nIf we don’t hear back, we may need to close the case for now, but we can reopen and continue as soon as you reply.\n\nThank you,\nLenovo Support`;
-  }
+function tplFollowUpWaiting(summary, parsed){
+  const header = replyHeaderBlock(parsed);
+  return `Hello,\n\n${header}I hope you're doing well. I’m following up on your case—at this time we’re still waiting on the requested information so we can continue troubleshooting.\n\nWhen you have a moment, please share the requested details (and logs if applicable). Once received, we’ll proceed right away.\n\nIf we don’t hear back, we may need to close the case for now, but we can reopen and continue as soon as you reply.\n\nThank you,\nLenovo Support`;
+}
 
-  // Pending closure
-  if(summary.status === "Pending Closure"){
-    return `Hello,\n\n${headerBlock}I’m checking in on your case. Based on the latest update, it appears the issue may be resolved.\n\nPlease confirm whether everything is working as expected. If we do not receive a response, we will proceed with closing the case.\n\nIf you still need assistance, reply to this message and we’ll continue troubleshooting.\n\nThank you,\nLenovo Support`;
-  }
+function tplClosureConfirm(summary, parsed){
+  const header = replyHeaderBlock(parsed);
+  return `Hello,\n\n${header}I’m checking in on your case. Based on the latest update, it appears the issue may be resolved.\n\nPlease confirm whether everything is working as expected. If we do not receive a response, we will proceed with closing the case.\n\nIf you still need assistance, reply to this message and we’ll continue troubleshooting.\n\nThank you,\nLenovo Support`;
+}
 
-  // Third-party boundary (include the approved concept: Lenovo cannot contact vendors)
-  if(summary.tags.includes("Third-Party")){
-    return `Hello,\n\n${headerBlock}Thank you for the details. Based on our review, this issue appears to be related to a third-party platform.\n\nPlease contact the vendor’s support team for further assistance with the platform-specific issue. Lenovo is not able to coordinate directly with third-party support providers on a customer’s behalf.\n\nIf you have any Lenovo-specific findings or changes after vendor troubleshooting, reply here and we’ll continue assisting.\n\nThank you,\nLenovo Support`;
-  }
+function tplLogsRequest(summary, parsed){
+  const header = replyHeaderBlock(parsed);
+  return `Hello,\n\n${header}Thank you for reaching out. To proceed with troubleshooting, we’ll need the requested logs/diagnostics.\n\nPlease collect and share the logs at your earliest convenience. Once received, we’ll review and provide the next steps.\n\nThank you,\nLenovo Support`;
+}
 
-  // Logs missing / data needed
-  if((summary.blocker || "").toLowerCase().includes("log")){
-    return `Hello,\n\n${headerBlock}Thank you for reaching out. To proceed with troubleshooting, we’ll need the requested logs/diagnostics.\n\nPlease collect and share the logs at your earliest convenience. Once received, we’ll review and provide the next steps.\n\nThank you,\nLenovo Support`;
-  }
+function tplThirdPartyBoundary(summary, parsed){
+  const header = replyHeaderBlock(parsed);
+  return `Hello,\n\n${header}Thank you for the details. Based on our review, this issue appears to be related to a third-party platform.\n\nPlease contact the vendor’s support team for further assistance with the platform-specific issue. Lenovo is not able to coordinate directly with third-party support providers on a customer’s behalf.\n\nIf you have any Lenovo-specific findings or changes after vendor troubleshooting, reply here and we’ll continue assisting.\n\nThank you,\nLenovo Support`;
+}
 
-  // Default
-  return `Hello,\n\n${headerBlock}Thank you for reaching out. We are reviewing your issue and proceeding with troubleshooting steps.\n\nIf you can share any additional details (exact symptoms, timing, error messages, or recent changes), that will help us assist more efficiently.\n\nThank you,\nLenovo Support`;
+function tplRMAExpectations(summary, parsed){
+  const header = replyHeaderBlock(parsed);
+  return `Hello,\n\n${header}I understand the request for a replacement and how disruptive this issue can be.\n\nAt this stage, we need to complete the required troubleshooting steps and review the results. If troubleshooting indicates that additional service action may be needed, we can escalate the case internally for the appropriate team to review available service options.\n\nIn the meantime, please share any requested details/logs so we can move forward as quickly as possible.\n\nThank you,\nLenovo Support`;
+}
+
+function tplGeneralUpdate(summary, parsed){
+  const header = replyHeaderBlock(parsed);
+  return `Hello,\n\n${header}Thank you for reaching out. We are reviewing your issue and proceeding with troubleshooting steps.\n\nIf you can share any additional details (exact symptoms, timing, error messages, or recent changes), that will help us assist more efficiently.\n\nThank you,\nLenovo Support`;
 }
 
 /* =========================
-   🛡️ REPLY GUARDRAILS (prevent bad language)
-   - Removes/promotes safe wording.
-   - Enforces: no replacement promises for L1.
+   🛡️ REPLY GUARDRAILS (prevent risky language)
    ========================= */
 function applyReplyGuardrails(reply, summary){
   let safe = reply;
 
-  // 1) Global risky promise phrases (sanitize)
   const replacements = [
     { pattern: /\bwe will replace\b/ig, replaceWith: "we will continue troubleshooting and escalate internally if needed" },
     { pattern: /\bwe(')?ll replace\b/ig, replaceWith: "we’ll continue troubleshooting and escalate internally if needed" },
     { pattern: /\bwe will send (a )?replacement\b/ig, replaceWith: "we will continue troubleshooting and escalate internally for review if needed" },
     { pattern: /\bwe(')?ll send (a )?replacement\b/ig, replaceWith: "we’ll continue troubleshooting and escalate internally for review if needed" },
     { pattern: /\bship(ping)? (you )?(a )?(new|replacement) unit\b/ig, replaceWith: "review service options after troubleshooting is complete" },
-    { pattern: /\b(rma|swap)\b/ig, replaceWith: "service review" } // keep it generic in customer-facing text
+    { pattern: /\b(rma|swap)\b/ig, replaceWith: "service review" }
   ];
 
   replacements.forEach(r => {
     safe = safe.replace(r.pattern, r.replaceWith);
   });
 
-  // 2) If RMA Risk, append approved governance note (no promises)
+  // If RMA risk detected, append a consistent “no promises” note
   if(summary.tags && summary.tags.includes("RMA Risk")){
     const guardrailNote =
-` \n\nNote: We can’t commit to a replacement in advance. If troubleshooting indicates a replacement may be needed, the request is reviewed and handled by the appropriate escalation/Customer Care team after the required troubleshooting steps are completed.`;
+`\n\nNote: We can’t commit to a replacement in advance. If troubleshooting indicates additional service action may be needed, the request is reviewed and handled by the appropriate escalation/Customer Care team after required troubleshooting steps are completed.`;
     if(!safe.toLowerCase().includes("can’t commit to a replacement")){
       safe += guardrailNote;
     }
   }
 
   return safe;
+}
+
+/* =========================
+   🥇 TOP 3 REPLY OPTIONS (rank + pick)
+   ========================= */
+function generateTop3ReplyOptions(summary, parsed){
+  const candidates = [];
+
+  // Helper to add unique candidates
+  function add(title, body, score){
+    candidates.push({ title, body, score });
+  }
+
+  // Scenario-driven scoring
+  const hasLogsMissing = (summary.blocker || "").toLowerCase().includes("log");
+  const isWaiting = summary.status === "Waiting on Customer";
+  const isClosure = summary.status === "Pending Closure";
+  const isThirdParty = summary.tags.includes("Third-Party");
+  const isRmaRisk = summary.tags.includes("RMA Risk");
+
+  // Primary templates
+  if(isWaiting) add("Follow-up (Waiting on Customer)", tplFollowUpWaiting(summary, parsed), 100);
+  if(isClosure) add("Closure Confirmation", tplClosureConfirm(summary, parsed), 100);
+  if(hasLogsMissing) add("Request Logs / Diagnostics", tplLogsRequest(summary, parsed), 95);
+  if(isThirdParty) add("Third-Party Boundary (Vendor Support)", tplThirdPartyBoundary(summary, parsed), 100);
+  if(isRmaRisk) add("Replacement Request (Set Expectations, No Promises)", tplRMAExpectations(summary, parsed), 100);
+
+  // Strong alternates
+  if(!hasLogsMissing) add("Request Logs / Diagnostics (Optional)", tplLogsRequest(summary, parsed), 60);
+  if(!isThirdParty) add("General Update (Troubleshooting in Progress)", tplGeneralUpdate(summary, parsed), 55);
+  if(!isWaiting) add("Follow-up (Check-in)", tplFollowUpWaiting(summary, parsed), 50);
+  if(!isClosure) add("Closure Confirmation (If Resolved)", tplClosureConfirm(summary, parsed), 35);
+
+  // Sort, de-dupe by title, take top 3
+  candidates.sort((a,b) => b.score - a.score);
+
+  const seen = new Set();
+  const top = [];
+  for(const c of candidates){
+    if(seen.has(c.title)) continue;
+    seen.add(c.title);
+    top.push(c);
+    if(top.length === 3) break;
+  }
+
+  // Apply guardrails to each body
+  return top.map((o) => ({
+    title: o.title,
+    body: applyReplyGuardrails(o.body, summary)
+  }));
 }
 
 /* =========================
@@ -364,13 +440,11 @@ async function copyTextFromTextarea(textareaId){
 
   const text = el.value;
 
-  // Modern API
   try {
     await navigator.clipboard.writeText(text);
     alert("Reply copied!");
     return;
   } catch (e) {
-    // Fallback
     el.select();
     document.execCommand("copy");
     alert("Reply copied!");
@@ -384,28 +458,17 @@ function sendMessage(){
   const input = document.getElementById("userInput").value;
   if(!input) return;
 
-  // Parse
   const parsed = parseCaseInput(input);
-
-  // Analyze notes
   const summary = generateCaseSummary(parsed.notes);
-
-  // Action
   const nextAction = getNextBestAction(summary);
-
-  // QA warnings
   const qa = getQAWarnings(summary, parsed);
 
-  // Reply + Guardrails
-  const draftReply = generateReply(summary, parsed);
-  const safeReply = applyReplyGuardrails(draftReply, summary);
+  const replyOptions = generateTop3ReplyOptions(summary, parsed);
 
-  // Tags pills
   const pills = (summary.tags || []).length
     ? summary.tags.map(t => `<span class="pill">${t}</span>`).join("")
     : `<span class="pill">No tags</span>`;
 
-  // Render
   const analysisCard = `
     <div class="card">
       <h3>📄 Case Overview</h3>
@@ -436,21 +499,26 @@ function sendMessage(){
     `
     : "";
 
-  const replyCard = `
+  const repliesCard = `
     <div class="card">
-      <h3>📧 Suggested Customer Reply (Copy/Paste)</h3>
-      <div class="meta small">Guardrails are applied automatically to prevent risky wording.</div>
-      <textarea id="replyBox">${safeReply}</textarea>
-      <div class="row">
-        <button onclick="copyTextFromTextarea('replyBox')">Copy Reply</button>
-      </div>
+      <h3>📧 Suggested Customer Replies (Top 3)</h3>
+      <div class="meta small">Choose the best match and copy/paste. Guardrails are applied automatically.</div>
+
+      ${replyOptions.map((opt, idx) => `
+        <div class="optWrap">
+          <div class="optTitle"><b>Option ${idx+1}:</b> ${opt.title}</div>
+          <textarea id="replyOpt${idx}">${opt.body}</textarea>
+          <div class="btnRow">
+            <button onclick="copyTextFromTextarea('replyOpt${idx}')">Copy Option ${idx+1}</button>
+          </div>
+        </div>
+      `).join("")}
     </div>
   `;
 
-  document.getElementById("output").innerHTML = analysisCard + warningsCard + replyCard;
+  document.getElementById("output").innerHTML = analysisCard + warningsCard + repliesCard;
 }
 </script>
 
 </body>
 </html>
-``
