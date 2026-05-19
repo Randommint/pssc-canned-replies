@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>MVP – Minimum Viable Pal</title>
+  <title>MVP – Case Intelligence Engine</title>
 
   <style>
     body {
@@ -24,11 +24,12 @@
     }
 
     button {
-      padding: 10px;
+      padding: 8px 12px;
       border-radius: 5px;
       border: none;
       background: #38bdf8;
       cursor: pointer;
+      margin-top: 5px;
     }
 
     .suggestCard {
@@ -40,7 +41,15 @@
     }
 
     .meta {
-      margin-top: 5px;
+      margin-top: 6px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      margin-top: 10px;
+      border-radius: 5px;
+      padding: 10px;
     }
 
     hr {
@@ -55,7 +64,7 @@
 <div class="chat-box">
   <h2>🧠 MVP – Case Intelligence Engine</h2>
 
-  <input id="userInput" placeholder="Paste case, escalation, or notes here..." />
+  <input id="userInput" placeholder="Paste case or escalation here..." />
   <button onclick="sendMessage()">Analyze</button>
 
   <div id="suggestions"></div>
@@ -75,25 +84,16 @@ function parseCaseInput(text){
     notes: text
   };
 
-  // Ticket / Case
   const ticketMatch = text.match(/(ticket|case)[#: ]*\s*([a-zA-Z0-9]+)/i);
-  if(ticketMatch){
-    parsed.ticketId = ticketMatch[2];
-  }
+  if(ticketMatch) parsed.ticketId = ticketMatch[2];
 
-  // Serial Number
   const serialMatch = text.match(/(serial|sn)[#: ]*\s*([a-zA-Z0-9]+)/i);
-  if(serialMatch){
-    parsed.serial = serialMatch[2];
-  }
+  if(serialMatch) parsed.serial = serialMatch[2];
 
-  // Clean notes if structured input found
-  if(parsed.ticketId !== "Not found" || parsed.serial !== "Not found"){
-    parsed.notes = text
-      .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
-      .replace(/(serial|sn)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
-      .trim();
-  }
+  parsed.notes = text
+    .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
+    .replace(/(serial|sn)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
+    .trim();
 
   return parsed;
 }
@@ -108,78 +108,43 @@ function generateCaseSummary(text){
   const input = text.toLowerCase();
 
   let summary = {
-    issue: "",
+    issue: "General issue",
     status: "Active",
     customerState: "Engaged",
-    blocker: "None clearly identified",
+    blocker: "None identified",
     nextStep: "Continue troubleshooting",
     tags: []
   };
 
-  const signals = {
-    noResponse: input.includes("no response") || input.includes("not responding"),
-    logsMissing: input.includes("log") || input.includes("diagnostic"),
-    closureIntent: input.includes("close") || input.includes("closure"),
-    thirdParty: input.includes("teams") || input.includes("zoom") || input.includes("google"),
-    hardware: input.includes("power") || input.includes("boot") || input.includes("unresponsive"),
-    rma: input.includes("replace") || input.includes("rma")
-  };
-
-  // Issue detection
-  if(signals.thirdParty){
-    summary.issue = "Third-party platform related issue";
-    summary.tags.push("Third-Party");
-  }
-  else if(signals.hardware){
-    summary.issue = "Device hardware or functionality issue";
-    summary.tags.push("Hardware");
-  }
-  else if(signals.noResponse){
-    summary.issue = "Customer unresponsive after request";
-    summary.tags.push("Customer Delay");
-  }
-  else{
-    summary.issue = "General support investigation";
-  }
-
-  // Status
-  if(signals.noResponse){
+  if(input.includes("not responding")){
+    summary.issue = "Customer not responding";
     summary.status = "Waiting on Customer";
     summary.customerState = "Unresponsive";
-  }
-
-  if(signals.closureIntent){
-    summary.status = "Pending Closure";
-  }
-
-  // Blocker
-  if(signals.logsMissing){
-    summary.blocker = "Missing logs or diagnostic data";
-  }
-
-  if(signals.noResponse){
     summary.blocker = "No customer response";
+    summary.tags.push("Customer Delay");
   }
 
-  if(signals.thirdParty){
-    summary.blocker = "Dependency on external platform/vendor";
+  if(input.includes("log")){
+    summary.blocker = "Missing logs";
   }
 
-  // Next Step
-  if(summary.status === "Waiting on Customer"){
-    summary.nextStep = "Send follow-up or closure warning";
-  }
-
-  if(summary.status === "Pending Closure"){
+  if(input.includes("close")){
+    summary.status = "Pending Closure";
     summary.nextStep = "Confirm closure with customer";
   }
 
-  if(signals.thirdParty){
-    summary.nextStep = "Validate scope and redirect to vendor if needed";
+  if(input.includes("teams") || input.includes("zoom")){
+    summary.issue = "Third-party platform issue";
+    summary.blocker = "External dependency";
+    summary.tags.push("Third-Party");
   }
 
-  if(signals.rma){
-    summary.nextStep = "Ensure troubleshooting completed before replacement";
+  if(input.includes("power") || input.includes("boot")){
+    summary.issue = "Hardware or power issue";
+    summary.tags.push("Hardware");
+  }
+
+  if(input.includes("replace") || input.includes("rma")){
     summary.tags.push("RMA Risk");
   }
 
@@ -188,35 +153,91 @@ function generateCaseSummary(text){
 
 
 // =========================
-// 🧠 NEXT BEST ACTION ENGINE
+// 🧠 NEXT BEST ACTION
 // =========================
 
 function getNextBestAction(summary){
 
-  let action = "Continue troubleshooting";
-
   if(summary.status === "Waiting on Customer"){
-    action = "Send follow-up to customer";
+    return "Send follow-up message";
   }
 
   if(summary.status === "Pending Closure"){
-    action = "Confirm closure with customer";
+    return "Confirm closure before proceeding";
   }
 
-  if(summary.blocker.includes("external")){
-    action = "Redirect to third-party support";
+  if(summary.tags.includes("Third-Party")){
+    return "Redirect to vendor support";
   }
 
-  if(summary.issue.includes("hardware")){
-    action = "Verify device state before escalation";
-  }
-
-  return action;
+  return "Continue troubleshooting";
 }
 
 
 // =========================
-// 🧠 MAIN EXECUTION
+// 🧠 CANNED REPLY ENGINE ✅
+// =========================
+
+function generateReply(summary){
+
+  // Waiting on customer
+  if(summary.status === "Waiting on Customer"){
+    return `Hello,
+
+I hope you're doing well. I wanted to follow up regarding your case. We are currently waiting on the requested information to proceed.
+
+When you have a moment, please provide the requested details or logs so we can continue troubleshooting.
+
+If we don’t hear back, we may proceed with closing the case, but we’re happy to continue assisting as soon as we receive your update.
+
+Thank you,
+Lenovo Support`;
+  }
+
+  // Pending closure
+  if(summary.status === "Pending Closure"){
+    return `Hello,
+
+We wanted to follow up on your case. At this time, it appears that your issue may be resolved.
+
+Please confirm if everything is working as expected. If we do not hear back, we will proceed with closing the case.
+
+If you still need assistance, we are happy to continue working with you.
+
+Thank you,
+Lenovo Support`;
+  }
+
+  // Third-party
+  if(summary.tags.includes("Third-Party")){
+    return `Hello,
+
+Based on our review, this issue appears to be related to a third-party platform.
+
+We recommend reaching out to the appropriate vendor for further assistance. If you need help identifying the correct support channel, please let us know.
+
+We will remain available if any Lenovo-related support is needed.
+
+Thank you,
+Lenovo Support`;
+  }
+
+  // Default troubleshooting response
+  return `Hello,
+
+Thank you for reaching out. We are currently reviewing your issue and proceeding with further troubleshooting steps.
+
+We will keep you updated as we continue to investigate.
+
+Please feel free to share any additional details that may help us assist you more efficiently.
+
+Thank you,
+Lenovo Support`;
+}
+
+
+// =========================
+// 🧠 MAIN FUNCTION
 // =========================
 
 function sendMessage(){
@@ -224,44 +245,55 @@ function sendMessage(){
   const input = document.getElementById("userInput").value;
   if(!input) return;
 
-  // Step 1 — Parse fields
   const parsed = parseCaseInput(input);
-
-  // Step 2 — Analyze notes only
   const summary = generateCaseSummary(parsed.notes);
-
-  // Step 3 — Get action
   const nextAction = getNextBestAction(summary);
+  const reply = generateReply(summary);
 
-  // Step 4 — Render UI
-  const summaryHTML = `
+  const html = `
     <div class="suggestCard">
 
       <h3>📄 Case Overview</h3>
-
-      <div class="meta"><b>Ticket ID:</b> ${parsed.ticketId}</div>
-      <div class="meta"><b>Serial Number:</b> ${parsed.serial}</div>
+      <div class="meta"><b>Ticket:</b> ${parsed.ticketId}</div>
+      <div class="meta"><b>Serial:</b> ${parsed.serial}</div>
 
       <hr>
 
-      <h3>🧠 Case Analysis</h3>
-
+      <h3>🧠 Analysis</h3>
       <div class="meta"><b>Issue:</b> ${summary.issue}</div>
       <div class="meta"><b>Status:</b> ${summary.status}</div>
-      <div class="meta"><b>Customer:</b> ${summary.customerState}</div>
       <div class="meta"><b>Blocker:</b> ${summary.blocker}</div>
       <div class="meta"><b>Next Step:</b> ${summary.nextStep}</div>
-      <div class="meta"><b>Recommended Action:</b> ${nextAction}</div>
-
+      <div class="meta"><b>Recommended:</b> ${nextAction}</div>
       <div class="meta"><b>Tags:</b> ${summary.tags.join(", ")}</div>
+
+      <hr>
+
+      <h3>📧 Suggested Customer Reply</h3>
+
+      <textarea id="replyBox">${reply}</textarea>
+      <button onclick="copyReply()">Copy Reply</button>
 
     </div>
   `;
 
-  document.getElementById("suggestions").innerHTML = summaryHTML;
+  document.getElementById("suggestions").innerHTML = html;
+}
+
+
+// =========================
+// 📋 COPY FUNCTION
+// =========================
+
+function copyReply(){
+  const textArea = document.getElementById("replyBox");
+  textArea.select();
+  document.execCommand("copy");
+  alert("Reply copied!");
 }
 
 </script>
 
 </body>
 </html>
+``
