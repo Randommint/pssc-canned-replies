@@ -117,8 +117,8 @@
     <h2>🧠 MVP – Case Intelligence Engine</h2>
 
     <div class="hint">
-      Paste case notes / escalation text. MVP parses Ticket/Serial/Customer Email, summarizes, warns on QA risks,
-      generates Top 3 copy/paste replies, and learns which options agents prefer (local-only).
+      Paste case notes / escalation text. MVP parses Ticket/Serial/Customer Email, summarizes, shows agent-facing guidance, generates Top 3 copy/paste replies, and learns which options agents prefer (local-only).
+      <br><span class="small">Lead Mode is hidden. (Ctrl + Shift + L)</span>
     </div>
 
     <div style="margin-top:10px;">
@@ -131,6 +131,21 @@
   </div>
 
 <script>
+/* =========================================================
+   🔒 LEAD MODE (Hidden)
+   - Ctrl + Shift + L toggles debug panels (QA + Explain Why)
+   ========================================================= */
+let leadMode = false;
+let lastRun = null;
+
+document.addEventListener("keydown", (e) => {
+  if(e.ctrlKey && e.shiftKey && (e.key === "L" || e.key === "l")){
+    leadMode = !leadMode;
+    if(lastRun) renderAll(lastRun);
+    alert(leadMode ? "Lead Mode ON (QA + Explain Why visible)" : "Lead Mode OFF (Agent view)");
+  }
+});
+
 /* =========================
    📈 LIGHTWEIGHT LEARNING (LOCAL)
    ========================= */
@@ -186,27 +201,23 @@ function parseCaseInput(text){
     notes: text
   };
 
-  // Ticket / Case patterns
   const ticketMatch = text.match(/(ticket|case)[#: ]*\s*([a-zA-Z0-9-]+)/i);
   if(ticketMatch) parsed.ticketId = ticketMatch[2];
 
-  // Serial patterns
   const serialMatch = text.match(/(serial|sn)[#: ]*\s*([a-zA-Z0-9]+)/i);
   if(serialMatch) parsed.serial = serialMatch[2];
 
-  // Customer email patterns (explicit label OR any email found)
   const labeledEmail = text.match(/(email|e-mail)[#: ]*\s*([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
   const anyEmail = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   if(labeledEmail) parsed.customerEmail = labeledEmail[2];
   else if(anyEmail) parsed.customerEmail = anyEmail[0];
 
-  // Clean notes if structured fields found
   if(parsed.ticketId !== "Not found" || parsed.serial !== "Not found" || parsed.customerEmail !== "Not found"){
     parsed.notes = text
       .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9-]+/ig, "")
       .replace(/(serial|sn)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
       .replace(/(email|e-mail)[#: ]*\s*[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, "")
-      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, "") // remove stray emails from notes
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, "")
       .trim();
   }
 
@@ -214,7 +225,7 @@ function parseCaseInput(text){
 }
 
 /* =========================
-   🔎 SIGNAL DETECTION (reused for summary + explain-why)
+   🔎 SIGNAL DETECTION
    ========================= */
 function detectSignals(text){
   const input = (text || "").toLowerCase();
@@ -222,14 +233,15 @@ function detectSignals(text){
     noResponse: input.includes("no response") || input.includes("not responding") || input.includes("unresponsive"),
     logsMissing: input.includes("log") || input.includes("diagnostic") || input.includes("collect logs"),
     closureIntent: input.includes("close") || input.includes("closure") || input.includes("closing"),
-    thirdParty: input.includes("teams") || input.includes("zoom") || input.includes("google"),
-    hardware: input.includes("power") || input.includes("boot") || input.includes("no power") || input.includes("unresponsive") || input.includes("hardware"),
-    rma: input.includes("replace") || input.includes("replacement") || input.includes("rma") || input.includes("swap")
+    thirdParty: input.includes("teams") || input.includes("zoom") || input.includes("google") || input.includes("webex"),
+    hardware: input.includes("power") || input.includes("boot") || input.includes("no power") || input.includes("won't turn on") || input.includes("unresponsive") || input.includes("hardware"),
+    rma: input.includes("replace") || input.includes("replacement") || input.includes("rma") || input.includes("swap"),
+    peripheralThirdParty: input.includes("logi") || input.includes("logitech") || input.includes("poly") || input.includes("jabra") || input.includes("shure")
   };
 }
 
 /* =========================
-   🧠 CASE SUMMARY ENGINE (returns summary + signals)
+   🧠 CASE SUMMARY ENGINE
    ========================= */
 function generateCaseSummary(text){
   const s = detectSignals(text);
@@ -243,7 +255,6 @@ function generateCaseSummary(text){
     tags: []
   };
 
-  // Issue detection
   if(s.thirdParty){
     summary.issue = "Third-party platform related issue";
     summary.tags.push("Third-Party");
@@ -255,7 +266,10 @@ function generateCaseSummary(text){
     summary.tags.push("Customer Delay");
   }
 
-  // Status / customer state
+  if(s.peripheralThirdParty){
+    if(!summary.tags.includes("Third-Party")) summary.tags.push("Third-Party");
+  }
+
   if(s.noResponse){
     summary.status = "Waiting on Customer";
     summary.customerState = "Unresponsive";
@@ -264,18 +278,16 @@ function generateCaseSummary(text){
     summary.status = "Pending Closure";
   }
 
-  // Blocker
   if(s.logsMissing){
     summary.blocker = "Missing logs or diagnostic data";
   }
   if(s.noResponse){
     summary.blocker = "No customer response";
   }
-  if(s.thirdParty){
-    summary.blocker = "Dependency on external platform/vendor";
+  if(s.thirdParty || s.peripheralThirdParty){
+    summary.blocker = "Dependency on external platform/vendor/peripheral";
   }
 
-  // Next step (governance-safe)
   if(summary.status === "Waiting on Customer"){
     summary.nextStep = "Send follow-up or closure warning";
   }
@@ -307,46 +319,39 @@ function getNextBestAction(summary){
 }
 
 /* =========================
-   ⚠️ QA WARNING ENGINE
+   ⚠️ QA WARNING ENGINE (Agent-facing: only actionable warnings)
    ========================= */
 function getQAWarnings(summary, parsed){
   let warnings = [];
   let severity = "yellow";
 
-  if(parsed.ticketId === "Not found") warnings.push("⚠️ Missing Ticket/Case ID");
-  if(parsed.serial === "Not found") warnings.push("⚠️ Missing Serial Number");
-  if(parsed.customerEmail === "Not found") warnings.push("⚠️ Missing Customer Email");
+  if(parsed.serial === "Not found") warnings.push("⚠️ Missing Serial Number (required for device identification)");
+  if(parsed.customerEmail === "Not found") warnings.push("⚠️ Missing Customer Email (required for contact)");
 
   if((summary.blocker || "").toLowerCase().includes("log")){
-    warnings.push("⚠️ Logs not collected – troubleshooting may be incomplete");
+    warnings.push("⚠️ Logs/diagnostics missing – request required data before escalation");
   }
 
   if(summary.status === "Waiting on Customer"){
-    warnings.push("⚠️ Follow-up cadence risk – ensure documented follow-ups before closure");
-  }
-
-  if(summary.status === "Pending Closure" && summary.customerState === "Unresponsive"){
-    warnings.push("⚠️ Closure risk – confirm customer intent / final attempt before closing");
+    warnings.push("⚠️ Waiting on customer – send follow-up with clear ask and closure expectation");
   }
 
   if(summary.tags.includes("RMA Risk")){
-    warnings.push("🚫 Do NOT promise replacement – RMA decisions are handled by escalation/Customer Care teams");
+    warnings.push("🚫 Do NOT promise replacement – escalate internally after troubleshooting if needed");
     severity = "red";
   }
 
   if(summary.tags.includes("Third-Party")){
-    warnings.push("⚠️ Third-party boundary – confirm scope; Lenovo cannot coordinate directly with vendors on customer’s behalf");
+    warnings.push("⚠️ Third-party boundary – confirm Lenovo scope and guide customer appropriately");
   }
 
   return { warnings, severity };
 }
 
 /* =========================
-   ✅ QA SCORE SYSTEM (0–100) + breakdown
+   ✅ QA SCORE SYSTEM (Lead Mode only)
    ========================= */
 function getQAScore(summary, parsed){
-  // Start perfect, subtract points for issues.
-  // Keep deductions conservative + explainable.
   let score = 100;
   const checks = [];
 
@@ -358,34 +363,87 @@ function getQAScore(summary, parsed){
     checks.push({ label, status: "✅", points: 0 });
   }
 
-  // Required intake essentials
   (parsed.ticketId !== "Not found") ? pass("Ticket/Case ID captured") : fail("Ticket/Case ID missing", 15);
   (parsed.serial !== "Not found") ? pass("Serial captured") : fail("Serial missing", 20);
   (parsed.customerEmail !== "Not found") ? pass("Customer email captured") : fail("Customer email missing", 20);
 
-  // Troubleshooting discipline
   if((summary.blocker || "").toLowerCase().includes("log")) fail("Logs missing (incomplete troubleshooting)", 15);
   else pass("Logs not flagged as missing");
 
-  // Lifecycle control
-  if(summary.status === "Waiting on Customer") fail("Follow-up cadence risk (waiting on customer)", 10);
+  if(summary.status === "Waiting on Customer") fail("Follow-up cadence risk", 10);
   else pass("Not in waiting-on-customer state");
 
-  if(summary.status === "Pending Closure" && summary.customerState === "Unresponsive") fail("Closure risk (no confirmation)", 10);
-  else pass("No closure-without-confirmation risk detected");
+  if(summary.tags.includes("RMA Risk")) fail("Governance risk: replacement pressure", 10);
+  else pass("No replacement pressure detected");
 
-  // Governance boundary
-  if(summary.tags.includes("RMA Risk")) fail("Governance risk: replacement language pressure (no promises)", 10);
-  else pass("No RMA governance pressure detected");
-
-  // Clamp score
   if(score < 0) score = 0;
   if(score > 100) score = 100;
 
-  // Grade (optional)
   const grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
-
   return { score, grade, checks };
+}
+
+/* =========================
+   🧭 GUIDED ACTIONS (Agent-facing troubleshooting guide)
+   ========================= */
+function getGuidedActions(summary, signals, parsed){
+  let actions = [];
+
+  // Always start with intake essentials
+  if(parsed.serial === "Not found") actions.push("Collect the device Serial Number (required to proceed)");
+  if(parsed.customerEmail === "Not found") actions.push("Confirm the customer email address for updates");
+  if(parsed.ticketId === "Not found") actions.push("Add/confirm the case or ticket ID for tracking");
+
+  // Logs/diagnostics path
+  if(signals.logsMissing){
+    actions.push("Request diagnostic logs/recordings/screenshots needed to continue troubleshooting");
+    actions.push("Ask for the approximate timestamp(s) when the issue occurred");
+    actions.push("Confirm the customer has access to the device during log collection");
+  }
+
+  // Hardware path
+  if(summary.tags.includes("Hardware")){
+    actions.push("Confirm power state, LED behavior, and exact symptoms (no power vs no display vs frozen)");
+    actions.push("Have customer perform a reboot/power cycle (and note results)");
+    actions.push("Confirm recent changes (updates, cabling, peripherals, onsite work, parts replaced)");
+    actions.push("If issue persists after evidence collection, prepare an internal escalation request with findings");
+  }
+
+  // Third-party platform path
+  if(signals.thirdParty){
+    actions.push("Confirm whether the issue reproduces outside the app/platform (helps isolate scope)");
+    actions.push("Verify account sign-in status and app version (if available)");
+    actions.push("Validate basic network connectivity and any recent network changes");
+    actions.push("If platform-specific, guide customer to vendor support and continue Lenovo-side checks as applicable");
+  }
+
+  // Third-party peripheral path (PSSC boundaries)
+  if(signals.peripheralThirdParty){
+    actions.push("Confirm whether a third-party peripheral is involved and isolate by testing without it if possible");
+    actions.push("Do not deeply troubleshoot third-party peripherals; focus on Lenovo device scope and request vendor support if needed");
+  }
+
+  // Waiting on customer path
+  if(summary.status === "Waiting on Customer"){
+    actions.push("Send follow-up with a clear, single action request (what you need from them)");
+    actions.push("Set closure expectation if no response, while offering to continue when they reply");
+  }
+
+  // RMA pressure path (safe)
+  if(summary.tags.includes("RMA Risk")){
+    actions.push("Do NOT promise replacement; communicate troubleshooting-first approach");
+    actions.push("Document evidence, troubleshooting performed, and customer impact");
+    actions.push("If warranted, escalate internally for Customer Care / appropriate team review");
+  }
+
+  // Fallback
+  if(actions.length === 0){
+    actions.push("Gather additional details: what changed, when it started, frequency, impact, and any error messages");
+    actions.push("Continue step-by-step troubleshooting and document results in the case");
+  }
+
+  // Keep it tight for agents (cap to avoid overwhelm)
+  return actions.slice(0, 10);
 }
 
 /* =========================
@@ -411,11 +469,11 @@ function tplLogsRequest(summary, parsed){
 }
 function tplThirdPartyBoundary(summary, parsed){
   const header = replyHeaderBlock(parsed);
-  return `Hello,\n\n${header}Thank you for the details. Based on our review, this issue appears to be related to a third-party platform.\n\nPlease contact the vendor’s support team for further assistance with the platform-specific issue. Lenovo is not able to coordinate directly with third-party support providers on a customer’s behalf.\n\nIf you have any Lenovo-specific findings or changes after vendor troubleshooting, reply here and we’ll continue assisting.\n\nThank you,\nLenovo Support`;
+  return `Hello,\n\n${header}Thank you for the details. Based on our review, this issue appears to be related to a third-party platform.\n\nPlease contact the vendor’s support team for further assistance with the platform-specific issue.\n\nIf you have any Lenovo-specific findings or changes after vendor troubleshooting, reply here and we’ll continue assisting.\n\nThank you,\nLenovo Support`;
 }
 function tplRMAExpectations(summary, parsed){
   const header = replyHeaderBlock(parsed);
-  return `Hello,\n\n${header}I understand the request for a replacement and how disruptive this issue can be.\n\nAt this stage, we need to complete the required troubleshooting steps and review the results. If troubleshooting indicates that additional service action may be needed, we can escalate the case internally for the appropriate team to review available service options.\n\nIn the meantime, please share any requested details/logs so we can move forward as quickly as possible.\n\nThank you,\nLenovo Support`;
+  return `Hello,\n\n${header}I understand the request for a replacement and how disruptive this issue can be.\n\nAt this stage, we need to complete the required troubleshooting steps and review the results. If troubleshooting indicates additional service action may be needed, we can escalate the case internally for the appropriate team to review available service options.\n\nIn the meantime, please share any requested details/logs so we can move forward as quickly as possible.\n\nThank you,\nLenovo Support`;
 }
 function tplGeneralUpdate(summary, parsed){
   const header = replyHeaderBlock(parsed);
@@ -423,7 +481,7 @@ function tplGeneralUpdate(summary, parsed){
 }
 
 /* =========================
-   🛡️ REPLY GUARDRAILS
+   🛡️ REPLY GUARDRAILS (Prevent risky language)
    ========================= */
 function applyReplyGuardrails(reply, summary){
   let safe = reply;
@@ -450,7 +508,7 @@ function applyReplyGuardrails(reply, summary){
 }
 
 /* =========================
-   🥇 TOP 3 REPLY OPTIONS (rank + learn + explain)
+   🥇 TOP 3 REPLY OPTIONS (Rank + Learn)
    ========================= */
 function generateTop3ReplyOptions(summary, parsed){
   const candidates = [];
@@ -477,10 +535,9 @@ function generateTop3ReplyOptions(summary, parsed){
   if(isWaiting) add("followup_waiting", "Follow-up (Waiting on Customer)", tplFollowUpWaiting(summary, parsed), 100, ["Status: Waiting on Customer"]);
   if(isClosure) add("closure_confirm", "Closure Confirmation", tplClosureConfirm(summary, parsed), 100, ["Status: Pending Closure"]);
   if(hasLogsMissing) add("logs_request", "Request Logs / Diagnostics", tplLogsRequest(summary, parsed), 95, ["Blocker: Missing logs/diagnostics"]);
-  if(isThirdParty) add("thirdparty", "Third-Party Boundary (Vendor Support)", tplThirdPartyBoundary(summary, parsed), 100, ["Tag: Third-Party", "Boundary reminder"]);
-  if(isRmaRisk) add("rma_expectations", "Replacement Request (Set Expectations, No Promises)", tplRMAExpectations(summary, parsed), 100, ["Tag: RMA Risk", "Governance: no promises"]);
+  if(isThirdParty) add("thirdparty", "Third-Party Boundary (Vendor Support)", tplThirdPartyBoundary(summary, parsed), 100, ["Tag: Third-Party"]);
+  if(isRmaRisk) add("rma_expectations", "Replacement Request (Set Expectations, No Promises)", tplRMAExpectations(summary, parsed), 100, ["Tag: RMA Risk (guardrails enforced)"]);
 
-  // Fallback always present
   add("general_update", "General Update (Troubleshooting in Progress)", tplGeneralUpdate(summary, parsed), 55, ["Fallback template"]);
 
   candidates.sort((a,b) => b.score - a.score);
@@ -505,30 +562,27 @@ function generateTop3ReplyOptions(summary, parsed){
 }
 
 /* =========================
-   🧠 EXPLAIN-WHY ENGINE
+   🔍 EXPLAIN-WHY (Lead Mode only)
    ========================= */
 function getExplainWhy(parsed, signals, summary, replyOptions){
   const reasons = [];
 
-  // Signal explanations
   if(signals.noResponse) reasons.push("Detected: customer not responding / no response language");
   if(signals.logsMissing) reasons.push("Detected: logs/diagnostics referenced (data may be required)");
   if(signals.closureIntent) reasons.push("Detected: closure language (close/closing/closure)");
-  if(signals.thirdParty) reasons.push("Detected: third-party platform keywords (Teams/Zoom/Google)");
+  if(signals.thirdParty) reasons.push("Detected: third-party platform keywords (Teams/Zoom/Google/Webex)");
   if(signals.hardware) reasons.push("Detected: hardware/power/boot language");
   if(signals.rma) reasons.push("Detected: replacement/RMA pressure keywords (guardrails enforced)");
+  if(signals.peripheralThirdParty) reasons.push("Detected: third-party peripheral brand keywords (scope boundary)");
 
-  // Intake expectations
-  if(parsed.customerEmail === "Not found") reasons.push("Missing: customer email (contact info is expected for case handling)");
+  if(parsed.customerEmail === "Not found") reasons.push("Missing: customer email (contact info expected)");
   if(parsed.serial === "Not found") reasons.push("Missing: serial number (device identification)");
   if(parsed.ticketId === "Not found") reasons.push("Missing: case/ticket ID (tracking)");
 
-
-  // Reply selection explanation
   const optLines = replyOptions.map((o, idx) => {
     const stats = getTemplateStatsLine(o.templateKey);
     const why = (o.why || []).join("; ");
-    return `Option ${idx+1}: base ${o.baseScore} + learning boost ${o.boost.toFixed(1)} = ${Math.round(o.score)} | ${stats} | why: ${why}`;
+    return `Option ${idx+1}: base ${o.baseScore} + boost ${o.boost.toFixed(1)} = ${Math.round(o.score)} | ${stats} | why: ${why}`;
   });
 
   return { reasons, optLines };
@@ -562,30 +616,16 @@ function feedbackOption(templateKey, isHelpful){
 }
 
 /* =========================
-   🧠 MAIN EXECUTION
+   🧠 RENDERER (Agent view + optional lead panels)
    ========================= */
-function sendMessage(){
-  const input = document.getElementById("userInput").value;
-  if(!input) return;
-
-  const parsed = parseCaseInput(input);
-
-  const out = generateCaseSummary(parsed.notes);
-  const summary = out.summary;
-  const signals = out.signals;
-
-  const nextAction = getNextBestAction(summary);
-  const qaWarn = getQAWarnings(summary, parsed);
-  const qaScore = getQAScore(summary, parsed);
-
-  const replyOptions = generateTop3ReplyOptions(summary, parsed);
-  const explain = getExplainWhy(parsed, signals, summary, replyOptions);
+function renderAll(model){
+  const { parsed, summary, signals, nextAction, qaWarn, replyOptions, actions, qaScore, explain } = model;
 
   const pills = (summary.tags || []).length
     ? summary.tags.map(t => `<span class="pill">${t}</span>`).join("")
     : `<span class="pill">No tags</span>`;
 
-  // Card: Case Overview + Analysis
+  // Agent: Overview + Analysis
   const analysisCard = `
     <div class="card">
       <h3>📄 Case Overview</h3>
@@ -602,57 +642,31 @@ function sendMessage(){
       <div class="meta"><b>Blocker:</b> ${summary.blocker}</div>
       <div class="meta"><b>Next Step:</b> ${summary.nextStep}</div>
       <div class="meta"><b>Recommended Action:</b> ${nextAction}</div>
-
       <div class="row">${pills}</div>
     </div>
   `;
 
-  // Card: QA Warnings
+  // Agent: Warnings
   const warningsCard = (qaWarn.warnings && qaWarn.warnings.length)
     ? `
       <div class="card ${qaWarn.severity}">
-        <h3>${qaWarn.severity === "red" ? "🚫 QA / Governance Warnings" : "⚠️ QA Warnings"}</h3>
+        <h3>${qaWarn.severity === "red" ? "🚫 Governance / Critical Warnings" : "⚠️ Warnings"}</h3>
         ${qaWarn.warnings.map(w => `<div class="meta">${w}</div>`).join("")}
       </div>
     `
     : "";
 
-  // Card: QA Score
-  const qaCardColor = qaScore.score >= 90 ? "green" : qaScore.score >= 75 ? "yellow" : "red";
-  const qaScoreCard = `
-    <div class="card ${qaCardColor}">
-      <h3>📊 QA Score</h3>
-      <div class="meta"><b>Score:</b> ${qaScore.score}/100  <span class="pill">Grade: ${qaScore.grade}</span></div>
-      <hr>
-      <div class="meta"><b>Breakdown:</b></div>
-      ${qaScore.checks.map(c => `
-        <div class="meta mono">${c.status} ${c.label} ${c.points !== 0 ? `( ${c.points} )` : ""}</div>
-      `).join("")}
-    </div>
-  `;
-
-  // Card: Explain Why
-  const explainCard = `
+  // Agent: Guided Actions
+  const guidanceCard = `
     <div class="card">
-      <h3>🔍 Explain Why</h3>
-      <div class="meta small">Shows detected signals + how reply options were ranked (base score + learning boost).</div>
+      <h3>🧭 Guided Actions</h3>
+      <div class="meta small">Suggested troubleshooting steps based on detected case signals</div>
       <hr>
-
-      <div class="grid2">
-        <div>
-          <div class="meta"><b>Detected Signals / Reasons</b></div>
-          ${explain.reasons.length ? explain.reasons.map(r => `<div class="meta mono">• ${r}</div>`).join("") : `<div class="meta mono">• No strong signals detected</div>`}
-        </div>
-
-        <div>
-          <div class="meta"><b>Reply Ranking Math</b></div>
-          ${explain.optLines.map(l => `<div class="meta mono">• ${l}</div>`).join("")}
-        </div>
-      </div>
+      ${actions.map(a => `<div class="meta">• ${a}</div>`).join("")}
     </div>
   `;
 
-  // Card: Top 3 Replies
+  // Agent: Replies
   const repliesCard = `
     <div class="card">
       <h3>📧 Suggested Customer Replies (Top 3)</h3>
@@ -665,13 +679,7 @@ function sendMessage(){
           <div class="optTitle">
             <b>Option ${idx+1}:</b> ${opt.title}
             <span class="pill">Score: ${Math.round(opt.score)}</span>
-            <span class="pill">Base: ${opt.baseScore}</span>
-            <span class="pill">Boost: ${opt.boost.toFixed(1)}</span>
             <span class="pill">${getTemplateStatsLine(opt.templateKey)}</span>
-          </div>
-
-          <div class="meta small">
-            <b>Why:</b> ${(opt.why || []).join("; ")}
           </div>
 
           <textarea id="replyOpt${idx}">${opt.body}</textarea>
@@ -686,8 +694,68 @@ function sendMessage(){
     </div>
   `;
 
+  // Lead panels (hidden by default)
+  let leadPanels = "";
+  if(leadMode){
+    const qaCardColor = qaScore.score >= 90 ? "green" : qaScore.score >= 75 ? "yellow" : "red";
+    const qaScoreCard = `
+      <div class="card ${qaCardColor}">
+        <h3>📊 QA Score (Lead Mode)</h3>
+        <div class="meta"><b>Score:</b> ${qaScore.score}/100 <span class="pill">Grade: ${qaScore.grade}</span></div>
+        <hr>
+        ${qaScore.checks.map(c => `<div class="meta mono">${c.status} ${c.label} ${c.points !== 0 ? `( ${c.points} )` : ""}</div>`).join("")}
+      </div>
+    `;
+
+    const explainCard = `
+      <div class="card">
+        <h3>🔍 Explain Why (Lead Mode)</h3>
+        <div class="meta small">Signals detected + ranking math (base + learning boost)</div>
+        <hr>
+        <div class="grid2">
+          <div>
+            <div class="meta"><b>Signals / Reasons</b></div>
+            ${explain.reasons.length ? explain.reasons.map(r => `<div class="meta mono">• ${r}</div>`).join("") : `<div class="meta mono">• No strong signals detected</div>`}
+          </div>
+          <div>
+            <div class="meta"><b>Reply Ranking</b></div>
+            ${explain.optLines.map(l => `<div class="meta mono">• ${l}</div>`).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+    leadPanels = qaScoreCard + explainCard;
+  }
+
   document.getElementById("output").innerHTML =
-    analysisCard + warningsCard + qaScoreCard + explainCard + repliesCard;
+    analysisCard + warningsCard + guidanceCard + repliesCard + leadPanels;
+}
+
+/* =========================
+   ✅ MAIN EXECUTION
+   ========================= */
+function sendMessage(){
+  const input = document.getElementById("userInput").value;
+  if(!input) return;
+
+  const parsed = parseCaseInput(input);
+
+  const out = generateCaseSummary(parsed.notes);
+  const summary = out.summary;
+  const signals = out.signals;
+
+  const nextAction = getNextBestAction(summary);
+  const qaWarn = getQAWarnings(summary, parsed);
+
+  const replyOptions = generateTop3ReplyOptions(summary, parsed);
+  const actions = getGuidedActions(summary, signals, parsed);
+
+  // Lead-only computations (still computed, just not shown unless leadMode)
+  const qaScore = getQAScore(summary, parsed);
+  const explain = getExplainWhy(parsed, signals, summary, replyOptions);
+
+  lastRun = { parsed, summary, signals, nextAction, qaWarn, replyOptions, actions, qaScore, explain };
+  renderAll(lastRun);
 }
 </script>
 
