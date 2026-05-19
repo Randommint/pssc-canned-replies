@@ -5,293 +5,450 @@
 
   <style>
     body {
-      font-family: Arial;
+      font-family: Arial, sans-serif;
       background: #0f172a;
-      color: white;
+      color: #ffffff;
       padding: 20px;
     }
 
     .chat-box {
-      max-width: 750px;
+      max-width: 820px;
       margin: auto;
     }
 
     input {
-      width: 75%;
+      width: 76%;
       padding: 10px;
-      border-radius: 5px;
+      border-radius: 6px;
       border: none;
+      margin-right: 6px;
     }
 
     button {
-      padding: 8px 12px;
-      border-radius: 5px;
+      padding: 10px 12px;
+      border-radius: 6px;
       border: none;
       background: #38bdf8;
       cursor: pointer;
-      margin-top: 5px;
+      color: #0b1220;
+      font-weight: 600;
     }
 
-    .suggestCard {
+    .card {
       background: #1e293b;
       padding: 15px;
       margin-top: 15px;
-      border-radius: 8px;
+      border-radius: 10px;
       border-left: 4px solid #38bdf8;
     }
 
+    .card.red {
+      border-left: 4px solid #fb7185;
+    }
+
+    .card.yellow {
+      border-left: 4px solid #fbbf24;
+    }
+
     .meta {
-      margin-top: 6px;
+      margin-top: 7px;
+      line-height: 1.25rem;
+    }
+
+    .small {
+      opacity: 0.85;
+      font-size: 0.92rem;
     }
 
     textarea {
       width: 100%;
-      height: 120px;
+      height: 160px;
       margin-top: 10px;
-      border-radius: 5px;
+      border-radius: 8px;
       padding: 10px;
+      border: none;
+      resize: vertical;
+      font-family: Arial, sans-serif;
+      font-size: 0.98rem;
     }
 
     hr {
       border: 1px solid #334155;
-      margin: 10px 0;
+      margin: 12px 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #0b1220;
+      border: 1px solid #334155;
+      font-size: 0.85rem;
+      margin-right: 6px;
+      margin-top: 6px;
+    }
+
+    .hint {
+      margin-top: 6px;
+      font-size: 0.9rem;
+      color: #cbd5e1;
     }
   </style>
 </head>
 
 <body>
+  <div class="chat-box">
+    <h2>🧠 MVP – Case Intelligence Engine</h2>
 
-<div class="chat-box">
-  <h2>🧠 MVP – Case Intelligence Engine</h2>
+    <div class="hint">
+      Paste case notes / escalation text. MVP will parse Ticket/Serial, summarize, warn on QA risks, and generate a copy/paste reply.
+    </div>
 
-  <input id="userInput" placeholder="Paste case or escalation here..." />
-  <button onclick="sendMessage()">Analyze</button>
+    <div style="margin-top:10px;">
+      <input id="userInput" placeholder="Example: Case #22336 | Serial: PF4RWEMX | Customer not responding after logs request..." />
+      <button onclick="sendMessage()">Analyze</button>
+    </div>
 
-  <div id="suggestions"></div>
-</div>
+    <div id="output"></div>
+  </div>
 
 <script>
-
-// =========================
-// 🧠 MULTI-FIELD PARSER
-// =========================
-
+/* =========================
+   🧠 MULTI-FIELD PARSER
+   ========================= */
 function parseCaseInput(text){
-
   const parsed = {
     ticketId: "Not found",
     serial: "Not found",
     notes: text
   };
 
-  const ticketMatch = text.match(/(ticket|case)[#: ]*\s*([a-zA-Z0-9]+)/i);
+  // Ticket / Case patterns
+  const ticketMatch = text.match(/(ticket|case)[#: ]*\s*([a-zA-Z0-9-]+)/i);
   if(ticketMatch) parsed.ticketId = ticketMatch[2];
 
+  // Serial patterns
   const serialMatch = text.match(/(serial|sn)[#: ]*\s*([a-zA-Z0-9]+)/i);
   if(serialMatch) parsed.serial = serialMatch[2];
 
-  parsed.notes = text
-    .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
-    .replace(/(serial|sn)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
-    .trim();
+  // Strip structured headers if present
+  if(parsed.ticketId !== "Not found" || parsed.serial !== "Not found"){
+    parsed.notes = text
+      .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9-]+/ig, "")
+      .replace(/(serial|sn)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
+      .trim();
+  }
 
   return parsed;
 }
 
-
-// =========================
-// 🧠 CASE SUMMARY ENGINE
-// =========================
-
+/* =========================
+   🧠 CASE SUMMARY ENGINE (live-ready base)
+   ========================= */
 function generateCaseSummary(text){
-
-  const input = text.toLowerCase();
+  const input = (text || "").toLowerCase();
 
   let summary = {
-    issue: "General issue",
+    issue: "General support investigation",
     status: "Active",
     customerState: "Engaged",
-    blocker: "None identified",
+    blocker: "None clearly identified",
     nextStep: "Continue troubleshooting",
     tags: []
   };
 
-  if(input.includes("not responding")){
-    summary.issue = "Customer not responding";
-    summary.status = "Waiting on Customer";
-    summary.customerState = "Unresponsive";
-    summary.blocker = "No customer response";
+  const signals = {
+    noResponse: input.includes("no response") || input.includes("not responding") || input.includes("unresponsive"),
+    logsMissing: input.includes("log") || input.includes("diagnostic") || input.includes("collect logs"),
+    closureIntent: input.includes("close") || input.includes("closure") || input.includes("closing"),
+    thirdParty: input.includes("teams") || input.includes("zoom") || input.includes("google"),
+    hardware: input.includes("power") || input.includes("boot") || input.includes("no power") || input.includes("unresponsive") || input.includes("hardware"),
+    rma: input.includes("replace") || input.includes("replacement") || input.includes("rma") || input.includes("swap")
+  };
+
+  // Issue detection (priority-ish)
+  if(signals.thirdParty){
+    summary.issue = "Third-party platform related issue";
+    summary.tags.push("Third-Party");
+  } else if(signals.hardware){
+    summary.issue = "Device hardware or functionality issue";
+    summary.tags.push("Hardware");
+  } else if(signals.noResponse){
+    summary.issue = "Customer unresponsive after request";
     summary.tags.push("Customer Delay");
   }
 
-  if(input.includes("log")){
-    summary.blocker = "Missing logs";
+  // Status / customer state
+  if(signals.noResponse){
+    summary.status = "Waiting on Customer";
+    summary.customerState = "Unresponsive";
+  }
+  if(signals.closureIntent){
+    summary.status = "Pending Closure";
   }
 
-  if(input.includes("close")){
-    summary.status = "Pending Closure";
+  // Blocker
+  if(signals.logsMissing){
+    summary.blocker = "Missing logs or diagnostic data";
+  }
+  if(signals.noResponse){
+    summary.blocker = "No customer response";
+  }
+  if(signals.thirdParty){
+    summary.blocker = "Dependency on external platform/vendor";
+  }
+
+  // Next step
+  if(summary.status === "Waiting on Customer"){
+    summary.nextStep = "Send follow-up or closure warning";
+  }
+  if(summary.status === "Pending Closure"){
     summary.nextStep = "Confirm closure with customer";
   }
-
-  if(input.includes("teams") || input.includes("zoom")){
-    summary.issue = "Third-party platform issue";
-    summary.blocker = "External dependency";
-    summary.tags.push("Third-Party");
+  if(signals.thirdParty){
+    summary.nextStep = "Validate scope and direct customer to vendor support if needed";
   }
-
-  if(input.includes("power") || input.includes("boot")){
-    summary.issue = "Hardware or power issue";
-    summary.tags.push("Hardware");
-  }
-
-  if(input.includes("replace") || input.includes("rma")){
-    summary.tags.push("RMA Risk");
+  if(signals.rma){
+    if(!summary.tags.includes("RMA Risk")) summary.tags.push("RMA Risk");
+    // Keep it governance-safe: troubleshoot and escalate internally, do NOT promise replacement
+    summary.nextStep = "Complete troubleshooting and escalate internally for review if needed";
   }
 
   return summary;
 }
 
-
-// =========================
-// 🧠 NEXT BEST ACTION
-// =========================
-
+/* =========================
+   🧠 NEXT BEST ACTION ENGINE
+   ========================= */
 function getNextBestAction(summary){
+  let action = "Continue troubleshooting";
 
   if(summary.status === "Waiting on Customer"){
-    return "Send follow-up message";
+    action = "Send follow-up to customer";
   }
-
   if(summary.status === "Pending Closure"){
-    return "Confirm closure before proceeding";
+    action = "Confirm closure before closing";
   }
-
   if(summary.tags.includes("Third-Party")){
-    return "Redirect to vendor support";
+    action = "Confirm scope; guide customer to vendor support";
+  }
+  if(summary.tags.includes("Hardware")){
+    action = "Validate device state; collect evidence/logs where possible";
+  }
+  if(summary.tags.includes("RMA Risk")){
+    action = "Do not promise replacement; escalate internally after troubleshooting";
   }
 
-  return "Continue troubleshooting";
+  return action;
 }
 
+/* =========================
+   ⚠️ QA WARNING ENGINE
+   ========================= */
+function getQAWarnings(summary, parsed){
+  let warnings = [];
+  let severity = "yellow"; // default
 
-// =========================
-// 🧠 CANNED REPLY ENGINE ✅
-// =========================
+  // Missing fields
+  if(parsed.ticketId === "Not found") warnings.push("⚠️ Missing Ticket/Case ID");
+  if(parsed.serial === "Not found") warnings.push("⚠️ Missing Serial Number");
 
-function generateReply(summary){
+  // Missing logs / incomplete troubleshooting
+  if((summary.blocker || "").toLowerCase().includes("log")){
+    warnings.push("⚠️ Logs not collected – troubleshooting may be incomplete");
+  }
+
+  // Follow-up cadence risk
+  if(summary.status === "Waiting on Customer"){
+    warnings.push("⚠️ Follow-up cadence risk – ensure documented follow-ups before closure");
+  }
+
+  // Closure risk
+  if(summary.status === "Pending Closure" && summary.customerState === "Unresponsive"){
+    warnings.push("⚠️ Closure risk – confirm customer intent / final attempt before closing");
+  }
+
+  // 🚫 RMA governance
+  if(summary.tags.includes("RMA Risk")){
+    warnings.push("🚫 Do NOT promise replacement – RMA decisions are handled by escalation/Customer Care teams");
+    severity = "red";
+  }
+
+  // Third-party boundary
+  if(summary.tags.includes("Third-Party")){
+    warnings.push("⚠️ Third-party boundary – confirm scope; Lenovo cannot coordinate directly with vendors on customer’s behalf");
+  }
+
+  return { warnings, severity };
+}
+
+/* =========================
+   📧 CANNED REPLY ENGINE (customer-friendly + unified)
+   ========================= */
+function generateReply(summary, parsed){
+  const caseLine = parsed.ticketId !== "Not found" ? `Case/Ticket: ${parsed.ticketId}\n` : "";
+  const serialLine = parsed.serial !== "Not found" ? `Serial: ${parsed.serial}\n` : "";
+  const headerBlock = (caseLine || serialLine) ? `${caseLine}${serialLine}\n` : "";
 
   // Waiting on customer
   if(summary.status === "Waiting on Customer"){
-    return `Hello,
-
-I hope you're doing well. I wanted to follow up regarding your case. We are currently waiting on the requested information to proceed.
-
-When you have a moment, please provide the requested details or logs so we can continue troubleshooting.
-
-If we don’t hear back, we may proceed with closing the case, but we’re happy to continue assisting as soon as we receive your update.
-
-Thank you,
-Lenovo Support`;
+    return `Hello,\n\n${headerBlock}I hope you're doing well. I’m following up on your case—at this time we’re still waiting on the requested information so we can continue troubleshooting.\n\nWhen you have a moment, please share the requested details (and logs if applicable). Once received, we’ll proceed right away.\n\nIf we don’t hear back, we may need to close the case for now, but we can reopen and continue as soon as you reply.\n\nThank you,\nLenovo Support`;
   }
 
   // Pending closure
   if(summary.status === "Pending Closure"){
-    return `Hello,
-
-We wanted to follow up on your case. At this time, it appears that your issue may be resolved.
-
-Please confirm if everything is working as expected. If we do not hear back, we will proceed with closing the case.
-
-If you still need assistance, we are happy to continue working with you.
-
-Thank you,
-Lenovo Support`;
+    return `Hello,\n\n${headerBlock}I’m checking in on your case. Based on the latest update, it appears the issue may be resolved.\n\nPlease confirm whether everything is working as expected. If we do not receive a response, we will proceed with closing the case.\n\nIf you still need assistance, reply to this message and we’ll continue troubleshooting.\n\nThank you,\nLenovo Support`;
   }
 
-  // Third-party
+  // Third-party boundary (include the approved concept: Lenovo cannot contact vendors)
   if(summary.tags.includes("Third-Party")){
-    return `Hello,
-
-Based on our review, this issue appears to be related to a third-party platform.
-
-We recommend reaching out to the appropriate vendor for further assistance. If you need help identifying the correct support channel, please let us know.
-
-We will remain available if any Lenovo-related support is needed.
-
-Thank you,
-Lenovo Support`;
+    return `Hello,\n\n${headerBlock}Thank you for the details. Based on our review, this issue appears to be related to a third-party platform.\n\nPlease contact the vendor’s support team for further assistance with the platform-specific issue. Lenovo is not able to coordinate directly with third-party support providers on a customer’s behalf.\n\nIf you have any Lenovo-specific findings or changes after vendor troubleshooting, reply here and we’ll continue assisting.\n\nThank you,\nLenovo Support`;
   }
 
-  // Default troubleshooting response
-  return `Hello,
+  // Logs missing / data needed
+  if((summary.blocker || "").toLowerCase().includes("log")){
+    return `Hello,\n\n${headerBlock}Thank you for reaching out. To proceed with troubleshooting, we’ll need the requested logs/diagnostics.\n\nPlease collect and share the logs at your earliest convenience. Once received, we’ll review and provide the next steps.\n\nThank you,\nLenovo Support`;
+  }
 
-Thank you for reaching out. We are currently reviewing your issue and proceeding with further troubleshooting steps.
-
-We will keep you updated as we continue to investigate.
-
-Please feel free to share any additional details that may help us assist you more efficiently.
-
-Thank you,
-Lenovo Support`;
+  // Default
+  return `Hello,\n\n${headerBlock}Thank you for reaching out. We are reviewing your issue and proceeding with troubleshooting steps.\n\nIf you can share any additional details (exact symptoms, timing, error messages, or recent changes), that will help us assist more efficiently.\n\nThank you,\nLenovo Support`;
 }
 
+/* =========================
+   🛡️ REPLY GUARDRAILS (prevent bad language)
+   - Removes/promotes safe wording.
+   - Enforces: no replacement promises for L1.
+   ========================= */
+function applyReplyGuardrails(reply, summary){
+  let safe = reply;
 
-// =========================
-// 🧠 MAIN FUNCTION
-// =========================
+  // 1) Global risky promise phrases (sanitize)
+  const replacements = [
+    { pattern: /\bwe will replace\b/ig, replaceWith: "we will continue troubleshooting and escalate internally if needed" },
+    { pattern: /\bwe(')?ll replace\b/ig, replaceWith: "we’ll continue troubleshooting and escalate internally if needed" },
+    { pattern: /\bwe will send (a )?replacement\b/ig, replaceWith: "we will continue troubleshooting and escalate internally for review if needed" },
+    { pattern: /\bwe(')?ll send (a )?replacement\b/ig, replaceWith: "we’ll continue troubleshooting and escalate internally for review if needed" },
+    { pattern: /\bship(ping)? (you )?(a )?(new|replacement) unit\b/ig, replaceWith: "review service options after troubleshooting is complete" },
+    { pattern: /\b(rma|swap)\b/ig, replaceWith: "service review" } // keep it generic in customer-facing text
+  ];
 
+  replacements.forEach(r => {
+    safe = safe.replace(r.pattern, r.replaceWith);
+  });
+
+  // 2) If RMA Risk, append approved governance note (no promises)
+  if(summary.tags && summary.tags.includes("RMA Risk")){
+    const guardrailNote =
+` \n\nNote: We can’t commit to a replacement in advance. If troubleshooting indicates a replacement may be needed, the request is reviewed and handled by the appropriate escalation/Customer Care team after the required troubleshooting steps are completed.`;
+    if(!safe.toLowerCase().includes("can’t commit to a replacement")){
+      safe += guardrailNote;
+    }
+  }
+
+  return safe;
+}
+
+/* =========================
+   📋 Copy helper
+   ========================= */
+async function copyTextFromTextarea(textareaId){
+  const el = document.getElementById(textareaId);
+  if(!el) return;
+
+  const text = el.value;
+
+  // Modern API
+  try {
+    await navigator.clipboard.writeText(text);
+    alert("Reply copied!");
+    return;
+  } catch (e) {
+    // Fallback
+    el.select();
+    document.execCommand("copy");
+    alert("Reply copied!");
+  }
+}
+
+/* =========================
+   🧠 MAIN EXECUTION
+   ========================= */
 function sendMessage(){
-
   const input = document.getElementById("userInput").value;
   if(!input) return;
 
+  // Parse
   const parsed = parseCaseInput(input);
+
+  // Analyze notes
   const summary = generateCaseSummary(parsed.notes);
+
+  // Action
   const nextAction = getNextBestAction(summary);
-  const reply = generateReply(summary);
 
-  const html = `
-    <div class="suggestCard">
+  // QA warnings
+  const qa = getQAWarnings(summary, parsed);
 
+  // Reply + Guardrails
+  const draftReply = generateReply(summary, parsed);
+  const safeReply = applyReplyGuardrails(draftReply, summary);
+
+  // Tags pills
+  const pills = (summary.tags || []).length
+    ? summary.tags.map(t => `<span class="pill">${t}</span>`).join("")
+    : `<span class="pill">No tags</span>`;
+
+  // Render
+  const analysisCard = `
+    <div class="card">
       <h3>📄 Case Overview</h3>
-      <div class="meta"><b>Ticket:</b> ${parsed.ticketId}</div>
-      <div class="meta"><b>Serial:</b> ${parsed.serial}</div>
+      <div class="meta"><b>Ticket/Case ID:</b> ${parsed.ticketId}</div>
+      <div class="meta"><b>Serial Number:</b> ${parsed.serial}</div>
+      <div class="meta small"><b>Extracted Notes:</b> ${parsed.notes ? "Yes" : "No"}</div>
 
       <hr>
 
-      <h3>🧠 Analysis</h3>
+      <h3>🧠 Case Analysis</h3>
       <div class="meta"><b>Issue:</b> ${summary.issue}</div>
       <div class="meta"><b>Status:</b> ${summary.status}</div>
+      <div class="meta"><b>Customer State:</b> ${summary.customerState}</div>
       <div class="meta"><b>Blocker:</b> ${summary.blocker}</div>
       <div class="meta"><b>Next Step:</b> ${summary.nextStep}</div>
-      <div class="meta"><b>Recommended:</b> ${nextAction}</div>
-      <div class="meta"><b>Tags:</b> ${summary.tags.join(", ")}</div>
+      <div class="meta"><b>Recommended Action:</b> ${nextAction}</div>
 
-      <hr>
-
-      <h3>📧 Suggested Customer Reply</h3>
-
-      <textarea id="replyBox">${reply}</textarea>
-      <button onclick="copyReply()">Copy Reply</button>
-
+      <div class="row">${pills}</div>
     </div>
   `;
 
-  document.getElementById("suggestions").innerHTML = html;
+  const warningsCard = (qa.warnings && qa.warnings.length)
+    ? `
+      <div class="card ${qa.severity}">
+        <h3>${qa.severity === "red" ? "🚫 QA / Governance Warnings" : "⚠️ QA Warnings"}</h3>
+        ${qa.warnings.map(w => `<div class="meta">${w}</div>`).join("")}
+      </div>
+    `
+    : "";
+
+  const replyCard = `
+    <div class="card">
+      <h3>📧 Suggested Customer Reply (Copy/Paste)</h3>
+      <div class="meta small">Guardrails are applied automatically to prevent risky wording.</div>
+      <textarea id="replyBox">${safeReply}</textarea>
+      <div class="row">
+        <button onclick="copyTextFromTextarea('replyBox')">Copy Reply</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("output").innerHTML = analysisCard + warningsCard + replyCard;
 }
-
-
-// =========================
-// 📋 COPY FUNCTION
-// =========================
-
-function copyReply(){
-  const textArea = document.getElementById("replyBox");
-  textArea.select();
-  document.execCommand("copy");
-  alert("Reply copied!");
-}
-
 </script>
 
 </body>
