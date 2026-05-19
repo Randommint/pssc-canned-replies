@@ -11,13 +11,10 @@
       padding: 20px;
     }
 
-    .chat-box {
-      max-width: 900px;
-      margin: auto;
-    }
+    .chat-box { max-width: 980px; margin: auto; }
 
     input {
-      width: 76%;
+      width: 74%;
       padding: 10px;
       border-radius: 6px;
       border: none;
@@ -31,8 +28,10 @@
       background: #38bdf8;
       cursor: pointer;
       color: #0b1220;
-      font-weight: 600;
+      font-weight: 700;
     }
+
+    .btnSecondary { background: #94a3b8; font-weight: 700; }
 
     .card {
       background: #1e293b;
@@ -42,23 +41,13 @@
       border-left: 4px solid #38bdf8;
     }
 
-    .card.red {
-      border-left: 4px solid #fb7185;
-    }
+    .card.red { border-left: 4px solid #fb7185; }
+    .card.yellow { border-left: 4px solid #fbbf24; }
+    .card.green { border-left: 4px solid #34d399; }
 
-    .card.yellow {
-      border-left: 4px solid #fbbf24;
-    }
+    .meta { margin-top: 7px; line-height: 1.25rem; }
 
-    .meta {
-      margin-top: 7px;
-      line-height: 1.25rem;
-    }
-
-    .small {
-      opacity: 0.85;
-      font-size: 0.92rem;
-    }
+    .small { opacity: 0.85; font-size: 0.92rem; }
 
     textarea {
       width: 100%;
@@ -71,19 +60,12 @@
       font-family: Arial, sans-serif;
       font-size: 0.98rem;
       color: #0b1220;
+      background: #e2e8f0;
     }
 
-    hr {
-      border: 1px solid #334155;
-      margin: 12px 0;
-    }
+    hr { border: 1px solid #334155; margin: 12px 0; }
 
-    .row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 
     .pill {
       display: inline-block;
@@ -97,17 +79,7 @@
       color: #e2e8f0;
     }
 
-    .hint {
-      margin-top: 6px;
-      font-size: 0.9rem;
-      color: #cbd5e1;
-    }
-
-    .optTitle {
-      margin-top: 0;
-      margin-bottom: 6px;
-      font-size: 1.02rem;
-    }
+    .hint { margin-top: 6px; font-size: 0.9rem; color: #cbd5e1; }
 
     .optWrap {
       background: #0b1220;
@@ -117,19 +89,25 @@
       margin-top: 12px;
     }
 
-    .optWrap textarea {
-      background: #e2e8f0;
+    .optTitle { margin-top: 0; margin-bottom: 6px; font-size: 1.02rem; }
+
+    .btnRow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
     }
 
-    .btnRow {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 8px;
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.9rem;
+      opacity: 0.95;
     }
 
-    .btnSecondary {
-      background: #94a3b8;
+    @media (max-width: 860px) {
+      input { width: 100%; margin-bottom: 10px; }
+      .grid2 { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -139,12 +117,12 @@
     <h2>🧠 MVP – Case Intelligence Engine</h2>
 
     <div class="hint">
-      Paste case notes / escalation text. MVP will parse Ticket/Serial, summarize, warn on QA risks, and generate Top 3 copy/paste replies.
-      <br><span class="small">Learning is local-only (saved in your browser). Use + Copy / Helpful / Not Helpful to train rankings.</span>
+      Paste case notes / escalation text. MVP parses Ticket/Serial/Customer Email, summarizes, warns on QA risks,
+      generates Top 3 copy/paste replies, and learns which options agents prefer (local-only).
     </div>
 
     <div style="margin-top:10px;">
-      <input id="userInput" placeholder="Example: Case #22336 | Serial: PF4RWEMX | Customer not responding after logs request..." />
+      <input id="userInput" placeholder="Example: Case #22336 | Serial: PF4RWEMX | Email: user@company.com | Customer not responding after logs request..." />
       <button onclick="sendMessage()">Analyze</button>
       <button class="btnSecondary" onclick="resetLearning()">Reset Learning</button>
     </div>
@@ -155,34 +133,23 @@
 <script>
 /* =========================
    📈 LIGHTWEIGHT LEARNING (LOCAL)
-   - Stores agent preferences in localStorage
-   - Boosts reply ranking based on usage + helpful votes
    ========================= */
-
 const MVP_STATS_KEY = "mvp_template_stats_v1";
 
 function loadTemplateStats(){
   try { return JSON.parse(localStorage.getItem(MVP_STATS_KEY)) || {}; }
   catch { return {}; }
 }
-
-function saveTemplateStats(stats){
-  localStorage.setItem(MVP_STATS_KEY, JSON.stringify(stats));
-}
-
+function saveTemplateStats(stats){ localStorage.setItem(MVP_STATS_KEY, JSON.stringify(stats)); }
 function ensureStat(stats, templateKey){
-  if(!stats[templateKey]){
-    stats[templateKey] = { used: 0, helpful: 0, notHelpful: 0 };
-  }
+  if(!stats[templateKey]) stats[templateKey] = { used: 0, helpful: 0, notHelpful: 0 };
 }
-
 function recordTemplateUse(templateKey){
   const stats = loadTemplateStats();
   ensureStat(stats, templateKey);
   stats[templateKey].used += 1;
   saveTemplateStats(stats);
 }
-
 function recordTemplateFeedback(templateKey, isHelpful){
   const stats = loadTemplateStats();
   ensureStat(stats, templateKey);
@@ -190,44 +157,56 @@ function recordTemplateFeedback(templateKey, isHelpful){
   else stats[templateKey].notHelpful += 1;
   saveTemplateStats(stats);
 }
-
 function getTemplateBoost(templateKey){
   const stats = loadTemplateStats();
   if(!stats[templateKey]) return 0;
-
   const { used, helpful, notHelpful } = stats[templateKey];
-  // Explainable scoring:
-  // - small boost for use
-  // - bigger boost for helpful
-  // - penalty for not helpful
+  // Explainable scoring: used +1, helpful +4, notHelpful -5
   return (used * 1.0) + (helpful * 4.0) - (notHelpful * 5.0);
 }
-
+function getTemplateStatsLine(templateKey){
+  const stats = loadTemplateStats();
+  const s = stats[templateKey];
+  if(!s) return "used:0 | 👍0 | 👎0";
+  return `used:${s.used} | 👍${s.helpful} | 👎${s.notHelpful}`;
+}
 function resetLearning(){
   localStorage.removeItem(MVP_STATS_KEY);
   alert("Learning reset (localStorage cleared).");
 }
 
 /* =========================
-   🧠 MULTI-FIELD PARSER
+   🧠 MULTI-FIELD PARSER (Ticket / Serial / Customer Email / Notes)
    ========================= */
 function parseCaseInput(text){
   const parsed = {
     ticketId: "Not found",
     serial: "Not found",
+    customerEmail: "Not found",
     notes: text
   };
 
+  // Ticket / Case patterns
   const ticketMatch = text.match(/(ticket|case)[#: ]*\s*([a-zA-Z0-9-]+)/i);
   if(ticketMatch) parsed.ticketId = ticketMatch[2];
 
+  // Serial patterns
   const serialMatch = text.match(/(serial|sn)[#: ]*\s*([a-zA-Z0-9]+)/i);
   if(serialMatch) parsed.serial = serialMatch[2];
 
-  if(parsed.ticketId !== "Not found" || parsed.serial !== "Not found"){
+  // Customer email patterns (explicit label OR any email found)
+  const labeledEmail = text.match(/(email|e-mail)[#: ]*\s*([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+  const anyEmail = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if(labeledEmail) parsed.customerEmail = labeledEmail[2];
+  else if(anyEmail) parsed.customerEmail = anyEmail[0];
+
+  // Clean notes if structured fields found
+  if(parsed.ticketId !== "Not found" || parsed.serial !== "Not found" || parsed.customerEmail !== "Not found"){
     parsed.notes = text
       .replace(/(ticket|case)[#: ]*\s*[a-zA-Z0-9-]+/ig, "")
       .replace(/(serial|sn)[#: ]*\s*[a-zA-Z0-9]+/ig, "")
+      .replace(/(email|e-mail)[#: ]*\s*[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, "")
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/ig, "") // remove stray emails from notes
       .trim();
   }
 
@@ -235,10 +214,25 @@ function parseCaseInput(text){
 }
 
 /* =========================
-   🧠 CASE SUMMARY ENGINE
+   🔎 SIGNAL DETECTION (reused for summary + explain-why)
+   ========================= */
+function detectSignals(text){
+  const input = (text || "").toLowerCase();
+  return {
+    noResponse: input.includes("no response") || input.includes("not responding") || input.includes("unresponsive"),
+    logsMissing: input.includes("log") || input.includes("diagnostic") || input.includes("collect logs"),
+    closureIntent: input.includes("close") || input.includes("closure") || input.includes("closing"),
+    thirdParty: input.includes("teams") || input.includes("zoom") || input.includes("google"),
+    hardware: input.includes("power") || input.includes("boot") || input.includes("no power") || input.includes("unresponsive") || input.includes("hardware"),
+    rma: input.includes("replace") || input.includes("replacement") || input.includes("rma") || input.includes("swap")
+  };
+}
+
+/* =========================
+   🧠 CASE SUMMARY ENGINE (returns summary + signals)
    ========================= */
 function generateCaseSummary(text){
-  const input = (text || "").toLowerCase();
+  const s = detectSignals(text);
 
   let summary = {
     issue: "General support investigation",
@@ -249,66 +243,54 @@ function generateCaseSummary(text){
     tags: []
   };
 
-  const signals = {
-    noResponse: input.includes("no response") || input.includes("not responding") || input.includes("unresponsive"),
-    logsMissing: input.includes("log") || input.includes("diagnostic") || input.includes("collect logs"),
-    closureIntent: input.includes("close") || input.includes("closure") || input.includes("closing"),
-    thirdParty: input.includes("teams") || input.includes("zoom") || input.includes("google"),
-    hardware: input.includes("power") || input.includes("boot") || input.includes("no power") || input.includes("unresponsive") || input.includes("hardware"),
-    rma: input.includes("replace") || input.includes("replacement") || input.includes("rma") || input.includes("swap")
-  };
-
-  if(signals.thirdParty){
+  // Issue detection
+  if(s.thirdParty){
     summary.issue = "Third-party platform related issue";
     summary.tags.push("Third-Party");
-  } else if(signals.hardware){
+  } else if(s.hardware){
     summary.issue = "Device hardware or functionality issue";
     summary.tags.push("Hardware");
-  } else if(signals.noResponse){
+  } else if(s.noResponse){
     summary.issue = "Customer unresponsive after request";
     summary.tags.push("Customer Delay");
   }
 
-  if(signals.noResponse){
+  // Status / customer state
+  if(s.noResponse){
     summary.status = "Waiting on Customer";
     summary.customerState = "Unresponsive";
   }
-
-  if(signals.closureIntent){
+  if(s.closureIntent){
     summary.status = "Pending Closure";
   }
 
-  if(signals.logsMissing){
+  // Blocker
+  if(s.logsMissing){
     summary.blocker = "Missing logs or diagnostic data";
   }
-
-  if(signals.noResponse){
+  if(s.noResponse){
     summary.blocker = "No customer response";
   }
-
-  if(signals.thirdParty){
+  if(s.thirdParty){
     summary.blocker = "Dependency on external platform/vendor";
   }
 
+  // Next step (governance-safe)
   if(summary.status === "Waiting on Customer"){
     summary.nextStep = "Send follow-up or closure warning";
   }
-
   if(summary.status === "Pending Closure"){
     summary.nextStep = "Confirm closure with customer";
   }
-
-  if(signals.thirdParty){
+  if(s.thirdParty){
     summary.nextStep = "Validate scope and direct customer to vendor support if needed";
   }
-
-  if(signals.rma){
+  if(s.rma){
     if(!summary.tags.includes("RMA Risk")) summary.tags.push("RMA Risk");
-    // Keep governance-safe: troubleshoot then escalate internally if needed
     summary.nextStep = "Complete troubleshooting and escalate internally for review if needed";
   }
 
-  return summary;
+  return { summary, signals: s };
 }
 
 /* =========================
@@ -316,23 +298,11 @@ function generateCaseSummary(text){
    ========================= */
 function getNextBestAction(summary){
   let action = "Continue troubleshooting";
-
-  if(summary.status === "Waiting on Customer"){
-    action = "Send follow-up to customer";
-  }
-  if(summary.status === "Pending Closure"){
-    action = "Confirm closure before closing";
-  }
-  if(summary.tags.includes("Third-Party")){
-    action = "Confirm scope; guide customer to vendor support";
-  }
-  if(summary.tags.includes("Hardware")){
-    action = "Validate device state; collect evidence/logs where possible";
-  }
-  if(summary.tags.includes("RMA Risk")){
-    action = "Do not promise replacement; escalate internally after troubleshooting";
-  }
-
+  if(summary.status === "Waiting on Customer") action = "Send follow-up to customer";
+  if(summary.status === "Pending Closure") action = "Confirm closure before closing";
+  if(summary.tags.includes("Third-Party")) action = "Confirm scope; guide customer to vendor support";
+  if(summary.tags.includes("Hardware")) action = "Validate device state; collect evidence/logs where possible";
+  if(summary.tags.includes("RMA Risk")) action = "Do not promise replacement; escalate internally after troubleshooting";
   return action;
 }
 
@@ -345,6 +315,7 @@ function getQAWarnings(summary, parsed){
 
   if(parsed.ticketId === "Not found") warnings.push("⚠️ Missing Ticket/Case ID");
   if(parsed.serial === "Not found") warnings.push("⚠️ Missing Serial Number");
+  if(parsed.customerEmail === "Not found") warnings.push("⚠️ Missing Customer Email");
 
   if((summary.blocker || "").toLowerCase().includes("log")){
     warnings.push("⚠️ Logs not collected – troubleshooting may be incomplete");
@@ -371,7 +342,54 @@ function getQAWarnings(summary, parsed){
 }
 
 /* =========================
-   📧 REPLY TEMPLATES (unified + customer friendly)
+   ✅ QA SCORE SYSTEM (0–100) + breakdown
+   ========================= */
+function getQAScore(summary, parsed){
+  // Start perfect, subtract points for issues.
+  // Keep deductions conservative + explainable.
+  let score = 100;
+  const checks = [];
+
+  function fail(label, points){
+    score -= points;
+    checks.push({ label, status: "❌", points: -points });
+  }
+  function pass(label){
+    checks.push({ label, status: "✅", points: 0 });
+  }
+
+  // Required intake essentials
+  (parsed.ticketId !== "Not found") ? pass("Ticket/Case ID captured") : fail("Ticket/Case ID missing", 15);
+  (parsed.serial !== "Not found") ? pass("Serial captured") : fail("Serial missing", 20);
+  (parsed.customerEmail !== "Not found") ? pass("Customer email captured") : fail("Customer email missing", 20);
+
+  // Troubleshooting discipline
+  if((summary.blocker || "").toLowerCase().includes("log")) fail("Logs missing (incomplete troubleshooting)", 15);
+  else pass("Logs not flagged as missing");
+
+  // Lifecycle control
+  if(summary.status === "Waiting on Customer") fail("Follow-up cadence risk (waiting on customer)", 10);
+  else pass("Not in waiting-on-customer state");
+
+  if(summary.status === "Pending Closure" && summary.customerState === "Unresponsive") fail("Closure risk (no confirmation)", 10);
+  else pass("No closure-without-confirmation risk detected");
+
+  // Governance boundary
+  if(summary.tags.includes("RMA Risk")) fail("Governance risk: replacement language pressure (no promises)", 10);
+  else pass("No RMA governance pressure detected");
+
+  // Clamp score
+  if(score < 0) score = 0;
+  if(score > 100) score = 100;
+
+  // Grade (optional)
+  const grade = score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+
+  return { score, grade, checks };
+}
+
+/* =========================
+   📧 REPLY TEMPLATES
    ========================= */
 function replyHeaderBlock(parsed){
   const caseLine = parsed.ticketId !== "Not found" ? `Case/Ticket: ${parsed.ticketId}\n` : "";
@@ -383,34 +401,29 @@ function tplFollowUpWaiting(summary, parsed){
   const header = replyHeaderBlock(parsed);
   return `Hello,\n\n${header}I hope you're doing well. I’m following up on your case—at this time we’re still waiting on the requested information so we can continue troubleshooting.\n\nWhen you have a moment, please share the requested details (and logs if applicable). Once received, we’ll proceed right away.\n\nIf we don’t hear back, we may need to close the case for now, but we can reopen and continue as soon as you reply.\n\nThank you,\nLenovo Support`;
 }
-
 function tplClosureConfirm(summary, parsed){
   const header = replyHeaderBlock(parsed);
   return `Hello,\n\n${header}I’m checking in on your case. Based on the latest update, it appears the issue may be resolved.\n\nPlease confirm whether everything is working as expected. If we do not receive a response, we will proceed with closing the case.\n\nIf you still need assistance, reply to this message and we’ll continue troubleshooting.\n\nThank you,\nLenovo Support`;
 }
-
 function tplLogsRequest(summary, parsed){
   const header = replyHeaderBlock(parsed);
   return `Hello,\n\n${header}Thank you for reaching out. To proceed with troubleshooting, we’ll need the requested logs/diagnostics.\n\nPlease collect and share the logs at your earliest convenience. Once received, we’ll review and provide the next steps.\n\nThank you,\nLenovo Support`;
 }
-
 function tplThirdPartyBoundary(summary, parsed){
   const header = replyHeaderBlock(parsed);
   return `Hello,\n\n${header}Thank you for the details. Based on our review, this issue appears to be related to a third-party platform.\n\nPlease contact the vendor’s support team for further assistance with the platform-specific issue. Lenovo is not able to coordinate directly with third-party support providers on a customer’s behalf.\n\nIf you have any Lenovo-specific findings or changes after vendor troubleshooting, reply here and we’ll continue assisting.\n\nThank you,\nLenovo Support`;
 }
-
 function tplRMAExpectations(summary, parsed){
   const header = replyHeaderBlock(parsed);
   return `Hello,\n\n${header}I understand the request for a replacement and how disruptive this issue can be.\n\nAt this stage, we need to complete the required troubleshooting steps and review the results. If troubleshooting indicates that additional service action may be needed, we can escalate the case internally for the appropriate team to review available service options.\n\nIn the meantime, please share any requested details/logs so we can move forward as quickly as possible.\n\nThank you,\nLenovo Support`;
 }
-
 function tplGeneralUpdate(summary, parsed){
   const header = replyHeaderBlock(parsed);
   return `Hello,\n\n${header}Thank you for reaching out. We are reviewing your issue and proceeding with troubleshooting steps.\n\nIf you can share any additional details (exact symptoms, timing, error messages, or recent changes), that will help us assist more efficiently.\n\nThank you,\nLenovo Support`;
 }
 
 /* =========================
-   🛡️ REPLY GUARDRAILS (prevent risky language)
+   🛡️ REPLY GUARDRAILS
    ========================= */
 function applyReplyGuardrails(reply, summary){
   let safe = reply;
@@ -427,29 +440,31 @@ function applyReplyGuardrails(reply, summary){
   replacements.forEach(r => { safe = safe.replace(r.pattern, r.replaceWith); });
 
   if(summary.tags && summary.tags.includes("RMA Risk")){
-    const guardrailNote =
+    const note =
 `\n\nNote: We can’t commit to a replacement in advance. If troubleshooting indicates additional service action may be needed, the request is reviewed and handled by the appropriate escalation/Customer Care team after required troubleshooting steps are completed.`;
     if(!safe.toLowerCase().includes("can’t commit to a replacement")){
-      safe += guardrailNote;
+      safe += note;
     }
   }
-
   return safe;
 }
 
 /* =========================
-   🥇 TOP 3 REPLY OPTIONS (rank + learn)
+   🥇 TOP 3 REPLY OPTIONS (rank + learn + explain)
    ========================= */
 function generateTop3ReplyOptions(summary, parsed){
   const candidates = [];
 
-  function add(templateKey, title, body, baseScore){
+  function add(templateKey, title, body, baseScore, why){
     const boost = getTemplateBoost(templateKey);
     candidates.push({
       templateKey,
       title,
       body,
-      score: baseScore + boost
+      baseScore,
+      boost,
+      score: baseScore + boost,
+      why
     });
   }
 
@@ -459,19 +474,17 @@ function generateTop3ReplyOptions(summary, parsed){
   const isThirdParty = summary.tags.includes("Third-Party");
   const isRmaRisk = summary.tags.includes("RMA Risk");
 
-  // Strong matches
-  if(isWaiting)     add("followup_waiting", "Follow-up (Waiting on Customer)", tplFollowUpWaiting(summary, parsed), 100);
-  if(isClosure)     add("closure_confirm",  "Closure Confirmation", tplClosureConfirm(summary, parsed), 100);
-  if(hasLogsMissing) add("logs_request",    "Request Logs / Diagnostics", tplLogsRequest(summary, parsed), 95);
-  if(isThirdParty)  add("thirdparty",      "Third-Party Boundary (Vendor Support)", tplThirdPartyBoundary(summary, parsed), 100);
-  if(isRmaRisk)     add("rma_expectations","Replacement Request (Set Expectations, No Promises)", tplRMAExpectations(summary, parsed), 100);
+  if(isWaiting) add("followup_waiting", "Follow-up (Waiting on Customer)", tplFollowUpWaiting(summary, parsed), 100, ["Status: Waiting on Customer"]);
+  if(isClosure) add("closure_confirm", "Closure Confirmation", tplClosureConfirm(summary, parsed), 100, ["Status: Pending Closure"]);
+  if(hasLogsMissing) add("logs_request", "Request Logs / Diagnostics", tplLogsRequest(summary, parsed), 95, ["Blocker: Missing logs/diagnostics"]);
+  if(isThirdParty) add("thirdparty", "Third-Party Boundary (Vendor Support)", tplThirdPartyBoundary(summary, parsed), 100, ["Tag: Third-Party", "Boundary reminder"]);
+  if(isRmaRisk) add("rma_expectations", "Replacement Request (Set Expectations, No Promises)", tplRMAExpectations(summary, parsed), 100, ["Tag: RMA Risk", "Governance: no promises"]);
 
-  // General fallbacks
-  add("general_update", "General Update (Troubleshooting in Progress)", tplGeneralUpdate(summary, parsed), 55);
+  // Fallback always present
+  add("general_update", "General Update (Troubleshooting in Progress)", tplGeneralUpdate(summary, parsed), 55, ["Fallback template"]);
 
   candidates.sort((a,b) => b.score - a.score);
 
-  // De-dupe and take top 3
   const seen = new Set();
   const top = [];
   for(const c of candidates){
@@ -481,16 +494,48 @@ function generateTop3ReplyOptions(summary, parsed){
       templateKey: c.templateKey,
       title: c.title,
       body: applyReplyGuardrails(c.body, summary),
-      score: c.score
+      baseScore: c.baseScore,
+      boost: c.boost,
+      score: c.score,
+      why: c.why
     });
     if(top.length === 3) break;
   }
-
   return top;
 }
 
 /* =========================
-   📋 Copy helper
+   🧠 EXPLAIN-WHY ENGINE
+   ========================= */
+function getExplainWhy(parsed, signals, summary, replyOptions){
+  const reasons = [];
+
+  // Signal explanations
+  if(signals.noResponse) reasons.push("Detected: customer not responding / no response language");
+  if(signals.logsMissing) reasons.push("Detected: logs/diagnostics referenced (data may be required)");
+  if(signals.closureIntent) reasons.push("Detected: closure language (close/closing/closure)");
+  if(signals.thirdParty) reasons.push("Detected: third-party platform keywords (Teams/Zoom/Google)");
+  if(signals.hardware) reasons.push("Detected: hardware/power/boot language");
+  if(signals.rma) reasons.push("Detected: replacement/RMA pressure keywords (guardrails enforced)");
+
+  // Intake expectations
+  if(parsed.customerEmail === "Not found") reasons.push("Missing: customer email (contact info is expected for case handling)");
+  if(parsed.serial === "Not found") reasons.push("Missing: serial number (device identification)");
+  if(parsed.ticketId === "Not found") reasons.push("Missing: case/ticket ID (tracking)");
+
+
+  // Reply selection explanation
+  const optLines = replyOptions.map((o, idx) => {
+    const stats = getTemplateStatsLine(o.templateKey);
+    const why = (o.why || []).join("; ");
+    return `Option ${idx+1}: base ${o.baseScore} + learning boost ${o.boost.toFixed(1)} = ${Math.round(o.score)} | ${stats} | why: ${why}`;
+  });
+
+  return { reasons, optLines };
+}
+
+/* =========================
+   📋 Copy helper + learning actions
    ========================= */
 async function copyTextFromTextarea(textareaId){
   const el = document.getElementById(textareaId);
@@ -507,15 +552,10 @@ async function copyTextFromTextarea(textareaId){
     alert("Reply copied!");
   }
 }
-
-/* =========================
-   🧠 Learning UI actions
-   ========================= */
 async function useOption(templateKey, textareaId){
   recordTemplateUse(templateKey);
   await copyTextFromTextarea(textareaId);
 }
-
 function feedbackOption(templateKey, isHelpful){
   recordTemplateFeedback(templateKey, isHelpful);
   alert(isHelpful ? "Saved: Helpful 👍" : "Saved: Not helpful 👎");
@@ -529,22 +569,29 @@ function sendMessage(){
   if(!input) return;
 
   const parsed = parseCaseInput(input);
-  const summary = generateCaseSummary(parsed.notes);
+
+  const out = generateCaseSummary(parsed.notes);
+  const summary = out.summary;
+  const signals = out.signals;
+
   const nextAction = getNextBestAction(summary);
-  const qa = getQAWarnings(summary, parsed);
+  const qaWarn = getQAWarnings(summary, parsed);
+  const qaScore = getQAScore(summary, parsed);
 
   const replyOptions = generateTop3ReplyOptions(summary, parsed);
+  const explain = getExplainWhy(parsed, signals, summary, replyOptions);
 
   const pills = (summary.tags || []).length
     ? summary.tags.map(t => `<span class="pill">${t}</span>`).join("")
     : `<span class="pill">No tags</span>`;
 
+  // Card: Case Overview + Analysis
   const analysisCard = `
     <div class="card">
       <h3>📄 Case Overview</h3>
       <div class="meta"><b>Ticket/Case ID:</b> ${parsed.ticketId}</div>
       <div class="meta"><b>Serial Number:</b> ${parsed.serial}</div>
-      <div class="meta small"><b>Extracted Notes:</b> ${parsed.notes ? "Yes" : "No"}</div>
+      <div class="meta"><b>Customer Email:</b> ${parsed.customerEmail}</div>
 
       <hr>
 
@@ -560,20 +607,57 @@ function sendMessage(){
     </div>
   `;
 
-  const warningsCard = (qa.warnings && qa.warnings.length)
+  // Card: QA Warnings
+  const warningsCard = (qaWarn.warnings && qaWarn.warnings.length)
     ? `
-      <div class="card ${qa.severity}">
-        <h3>${qa.severity === "red" ? "🚫 QA / Governance Warnings" : "⚠️ QA Warnings"}</h3>
-        ${qa.warnings.map(w => `<div class="meta">${w}</div>`).join("")}
+      <div class="card ${qaWarn.severity}">
+        <h3>${qaWarn.severity === "red" ? "🚫 QA / Governance Warnings" : "⚠️ QA Warnings"}</h3>
+        ${qaWarn.warnings.map(w => `<div class="meta">${w}</div>`).join("")}
       </div>
     `
     : "";
 
+  // Card: QA Score
+  const qaCardColor = qaScore.score >= 90 ? "green" : qaScore.score >= 75 ? "yellow" : "red";
+  const qaScoreCard = `
+    <div class="card ${qaCardColor}">
+      <h3>📊 QA Score</h3>
+      <div class="meta"><b>Score:</b> ${qaScore.score}/100  <span class="pill">Grade: ${qaScore.grade}</span></div>
+      <hr>
+      <div class="meta"><b>Breakdown:</b></div>
+      ${qaScore.checks.map(c => `
+        <div class="meta mono">${c.status} ${c.label} ${c.points !== 0 ? `( ${c.points} )` : ""}</div>
+      `).join("")}
+    </div>
+  `;
+
+  // Card: Explain Why
+  const explainCard = `
+    <div class="card">
+      <h3>🔍 Explain Why</h3>
+      <div class="meta small">Shows detected signals + how reply options were ranked (base score + learning boost).</div>
+      <hr>
+
+      <div class="grid2">
+        <div>
+          <div class="meta"><b>Detected Signals / Reasons</b></div>
+          ${explain.reasons.length ? explain.reasons.map(r => `<div class="meta mono">• ${r}</div>`).join("") : `<div class="meta mono">• No strong signals detected</div>`}
+        </div>
+
+        <div>
+          <div class="meta"><b>Reply Ranking Math</b></div>
+          ${explain.optLines.map(l => `<div class="meta mono">• ${l}</div>`).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Card: Top 3 Replies
   const repliesCard = `
     <div class="card">
       <h3>📧 Suggested Customer Replies (Top 3)</h3>
       <div class="meta small">
-        MVP learns which templates agents use and rate helpful. Higher “Score” = more likely to rank next time.
+        Use + Copy records usage (learning). Helpful/Not Helpful adjusts future ranking (local-only).
       </div>
 
       ${replyOptions.map((opt, idx) => `
@@ -581,6 +665,13 @@ function sendMessage(){
           <div class="optTitle">
             <b>Option ${idx+1}:</b> ${opt.title}
             <span class="pill">Score: ${Math.round(opt.score)}</span>
+            <span class="pill">Base: ${opt.baseScore}</span>
+            <span class="pill">Boost: ${opt.boost.toFixed(1)}</span>
+            <span class="pill">${getTemplateStatsLine(opt.templateKey)}</span>
+          </div>
+
+          <div class="meta small">
+            <b>Why:</b> ${(opt.why || []).join("; ")}
           </div>
 
           <textarea id="replyOpt${idx}">${opt.body}</textarea>
@@ -595,10 +686,10 @@ function sendMessage(){
     </div>
   `;
 
-  document.getElementById("output").innerHTML = analysisCard + warningsCard + repliesCard;
+  document.getElementById("output").innerHTML =
+    analysisCard + warningsCard + qaScoreCard + explainCard + repliesCard;
 }
 </script>
 
 </body>
 </html>
-``
